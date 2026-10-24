@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- Fictional client homepage used only as the fixture screenshot for templates/screenshot.html. -->
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; background: #fbf8f3; color: #2b2622; width: 1440px; }
+  nav { display: flex; justify-content: space-between; align-items: center; padding: 28px 80px; border-bottom: 1px solid #e6dfd4; }
+  nav b { font-size: 26px; letter-spacing: .02em; }
+  nav span { font-family: Arial, sans-serif; font-size: 15px; margin-left: 36px; color: #5b524a; }
+  nav .cta { background: #2f5d50; color: #fff; padding: 12px 22px; border-radius: 4px; }
+  .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; padding: 96px 80px; align-items: center; }
+  .hero h1 { font-size: 72px; line-height: 1.04; font-weight: 400; }
+  .hero p { font-family: Arial, sans-serif; font-size: 19px; line-height: 1.6; color: #5b524a; margin: 28px 0 36px; max-width: 30em; }
+  .btn { display: inline-block; font-family: Arial, sans-serif; background: #2f5d50; color: #fff; padding: 18px 30px; border-radius: 4px; font-size: 17px; }
+  .photo { height: 460px; border-radius: 8px; background: linear-gradient(135deg, #c9b79c 0%, #8f7a5e 45%, #3f4b45 100%); position: relative; overflow: hidden; }
+  .photo::before { content: ""; position: absolute; inset: 40px 40px auto auto; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,.18); }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding: 0 80px 96px; }
+  .card { background: #fff; border: 1px solid #e6dfd4; border-radius: 8px; padding: 32px; font-family: Arial, sans-serif; }
+  .card h3 { font-family: Georgia, serif; font-weight: 400; font-size: 26px; margin-bottom: 12px; }
+  .card p { color: #6a6058; line-height: 1.6; }
+</style></head><body>
+  <nav><b>Valley Tile &amp; Stone</b><div><span>Services</span><span>Gallery</span><span>About</span><span class="cta">Free estimate</span></div></nav>
+  <section class="hero">
+    <div><h1>Floors and kitchens, set by hand.</h1>
+      <p>Tile, stone, and backsplash installation across the Shenandoah Valley. Family owned since 1998.</p>
+      <span class="btn">Book a free estimate</span></div>
+    <div class="photo"></div>
+  </section>
+  <section class="row">
+    <div class="card"><h3>Kitchens</h3><p>Backsplashes and counters measured, cut, and set in a week.</p></div>
+    <div class="card"><h3>Bathrooms</h3><p>Showers, floors, and heated tile with a five-year warranty.</p></div>
+    <div class="card"><h3>Outdoor</h3><p>Patios and walkways in local stone that hold up to winter.</p></div>
+  </section>
+</body></html>

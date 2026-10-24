@@ -1,0 +1,5 @@
+<!-- PLACEHOLDER ICON: replace with the real Daedabyte mark. Uses currentColor so templates can tint it. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="miter">
+  <path d="M8 5.5h15a18.5 18.5 0 0 1 0 37H8z"/>
+  <path d="M17 15h6a9 9 0 0 1 0 18h-6z"/>
+</svg>

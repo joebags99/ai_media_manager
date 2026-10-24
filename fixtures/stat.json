@@ -1,0 +1,9 @@
+{
+  "id": "fixture-stat",
+  "template": "stat",
+  "slots": {
+    "number": "40%",
+    "claim": "Average increase in inquiries after launch.",
+    "kicker": "Start your project."
+  }
+}

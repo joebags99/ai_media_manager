@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" data-template="list">
+<head>
+<meta charset="utf-8">
+<title>list</title>
+<!--
+  List ad: four accent-colored words, then a white verdict.
+  Slots: line1 line2 line3 line4 verdict
+  Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json.
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body {
+    background: var(--color-ink);
+    color: var(--color-marble);
+    font-family: var(--font-body);
+    font-weight: var(--font-body-weight);
+    -webkit-font-smoothing: antialiased;
+  }
+  .ad { width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; }
+
+  .top { display: flex; align-items: center; height: var(--icon); }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+
+  .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .stack { margin-top: auto; margin-bottom: auto; padding-top: 24px; }
+
+  .word {
+    display: block;
+    white-space: nowrap;
+    font-family: var(--font-display);
+    font-weight: var(--font-display-weight);
+    letter-spacing: var(--font-display-tracking);
+    font-size: 168px;
+    line-height: 0.98;
+  }
+  :root[data-format="portrait"] .word { font-size: 188px; }
+  .word:nth-of-type(1) { color: var(--accent-1); }
+  .word:nth-of-type(2) { color: var(--accent-2); }
+  .word:nth-of-type(3) { color: var(--accent-3); }
+  .word:nth-of-type(4) { color: var(--accent-4); }
+
+  .rule { width: 112px; height: var(--rule); background: var(--color-ash); margin: 48px 0 40px; }
+
+  .verdict {
+    font-family: var(--font-display);
+    font-weight: var(--font-display-weight);
+    letter-spacing: var(--font-display-tracking);
+    color: var(--color-marble);
+    font-size: 64px;
+    line-height: 1.08;
+    max-width: 16ch;
+  }
+  :root[data-format="portrait"] .verdict { font-size: 72px; }
+
+  .foot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 32px; }
+  .eyebrow {
+    font-family: var(--font-eyebrow);
+    font-weight: var(--font-eyebrow-weight);
+    letter-spacing: var(--font-eyebrow-tracking);
+    text-transform: var(--font-eyebrow-transform);
+    font-size: 20px;
+    color: var(--color-ash);
+  }
+</style>
+</head>
+<body>
+  <main class="ad">
+    <header class="top"><span data-icon></span></header>
+    <section class="body" data-fit-box>
+      <div class="stack">
+        <span class="word" data-slot="line1" data-fit data-fit-width="words"></span>
+        <span class="word" data-slot="line2" data-fit data-fit-width="words"></span>
+        <span class="word" data-slot="line3" data-fit data-fit-width="words"></span>
+        <span class="word" data-slot="line4" data-fit data-fit-width="words"></span>
+        <div class="rule"></div>
+        <p class="verdict" data-slot="verdict" data-fit></p>
+      </div>
+    </section>
+    <footer class="foot">
+      <span class="eyebrow" data-brand="name"></span>
+      <span class="eyebrow" data-brand="siteHost"></span>
+    </footer>
+  </main>
+</body>
+</html>

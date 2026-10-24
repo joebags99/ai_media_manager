@@ -1,0 +1,11 @@
+{
+  "id": "fixture-list",
+  "template": "list",
+  "slots": {
+    "line1": "Slow.",
+    "line2": "Dated.",
+    "line3": "Invisible.",
+    "line4": "Broken.",
+    "verdict": "Your website should be none of these."
+  }
+}

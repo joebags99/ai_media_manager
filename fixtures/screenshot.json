@@ -1,0 +1,9 @@
+{
+  "id": "fixture-screenshot",
+  "template": "screenshot",
+  "slots": {
+    "headline": "Built to load fast.",
+    "accentWord": "fast"
+  },
+  "crop": { "screenshot": "sample-desktop.png", "region": [0, 0, 1440, 760], "treatment": "framed" }
+}

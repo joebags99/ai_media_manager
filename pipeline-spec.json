@@ -1,0 +1,281 @@
+{
+  "$schema": "./pipeline-spec.schema.json",
+  "name": "daedabyte-ad-pipeline",
+  "version": "0.1.0",
+  "purpose": "Generate one on-brand social ad per weekday for Daedabyte, hold it for human review, and schedule approved posts to Buffer.",
+  "owner": "Daedabyte Web Solutions",
+  "status": "local-prototype",
+
+  "goals": [
+    "Five posts a week with Joe's effort limited to reviewing, giving feedback, and approving.",
+    "Every image is rendered from a fixed HTML template so brand colors, fonts, and layout never drift.",
+    "Claude writes copy and art-directs; it never draws pixels.",
+    "Nothing posts without an explicit approval click.",
+    "Single-tenant now, but every record carries an orgId so multi-tenant is additive later."
+  ],
+  "nonGoals": [
+    "Generative image models in the core path (backgrounds only, behind a flag).",
+    "Analytics, comment replies, or DM handling.",
+    "Video or carousel posts in v0.",
+    "Replacing Buffer as the scheduler."
+  ],
+
+  "inputs": {
+    "brand": "brand/brand.json",
+    "brandVoice": "brand/brand.md",
+    "exampleAds": "brand/examples/*.png",
+    "sites": "sites/*.json",
+    "calendar": "data/calendar.json"
+  },
+
+  "externalServices": {
+    "anthropic": {
+      "use": "copy, art direction, template selection, crop selection, revisions",
+      "auth": "ANTHROPIC_API_KEY",
+      "notes": "Check docs.claude.com for the current model string and image-input format before coding. Return strict JSON; no prose."
+    },
+    "buffer": {
+      "use": "upload media, create scheduled post, read channel schedule, delete post",
+      "auth": "BUFFER_ACCESS_TOKEN",
+      "organizationId": "6995da98b50c73bfc1a845f1",
+      "channels": {
+        "instagram": "69977105d6f8d304f9300473",
+        "linkedin": "699770e9d6f8d304f930040b",
+        "googlebusiness": "69976f1ed6f8d304f92ffb30",
+        "facebook": "69976ec0d6f8d304f92ff8e1"
+      },
+      "rateLimitNote": "Plan shows ~7,500 requests/month and ~250/day. Budget: under 60 requests/week.",
+      "notes": "Read the current Buffer API docs at buffer.com/developers before coding. Do not use old v1 (api.bufferapp.com) client libraries."
+    },
+    "playwright": {
+      "use": "client-site screenshots and template rendering",
+      "browser": "chromium"
+    },
+    "email": {
+      "use": "weekly review digest",
+      "local": "console log or Ethereal test inbox",
+      "prod": "AWS SES"
+    }
+  },
+
+  "architecture": {
+    "runtime": "Node 20+, TypeScript, ESM",
+    "packaging": "single repo, src/ modules, one CLI entrypoint",
+    "storage": {
+      "local": "SQLite via better-sqlite3 at data/local.db",
+      "prod": "DynamoDB or Postgres; same repository interface",
+      "assets": {
+        "local": "data/screenshots/, data/renders/",
+        "prod": "S3"
+      }
+    },
+    "modules": {
+      "capture": {
+        "file": "src/capture.ts",
+        "does": "Load a site recipe, dismiss banners, wait for selectors, capture desktop (1440px) and mobile (390px) PNGs for each named section.",
+        "input": "sites/<slug>.json",
+        "output": "data/screenshots/<slug>/<section>-<viewport>.png + manifest.json"
+      },
+      "generate": {
+        "file": "src/generate.ts",
+        "does": "Build one Claude call per post: brand voice + brand.json + template slot schema + screenshots as images. Parse strict JSON. Validate against template slots. Insert a draft.",
+        "output": "drafts row with status=pending"
+      },
+      "render": {
+        "file": "src/render.ts",
+        "does": "Fill templates/<template>.html with draft JSON, set CSS vars from brand.json, screenshot at 1080x1080 and 1080x1350.",
+        "output": "data/renders/<draftId>-square.png, -portrait.png"
+      },
+      "revise": {
+        "file": "src/revise.ts",
+        "does": "Replay the original generate messages plus the reviewer feedback as a follow-up turn. Re-render. Bump draft version.",
+        "output": "new draft version; previous kept"
+      },
+      "publish": {
+        "file": "src/publish.ts",
+        "does": "Upload render, create a scheduled Buffer post per channel with the platform-specific caption, store Buffer post IDs.",
+        "guard": "Only runs on status=approved. In TEST_MODE schedules 60 days out and logs the delete command."
+      },
+      "dashboard": {
+        "file": "src/dashboard.ts",
+        "does": "Express app on localhost:3000. Lists pending drafts with image, captions per platform, crop region overlay. Buttons: approve, revise (textarea), reject.",
+        "auth": {
+          "local": "none",
+          "prod": "Cognito"
+        }
+      },
+      "notify": {
+        "file": "src/notify.ts",
+        "does": "After a weekly run, send one digest with thumbnails and a link to the dashboard."
+      },
+      "cli": {
+        "file": "src/cli.ts",
+        "commands": {
+          "capture <site>": "run capture for one site",
+          "weekly": "capture -> generate -> render for the week's calendar",
+          "review": "start the dashboard",
+          "publish <draftId>": "publish one approved draft",
+          "revise <draftId> \"feedback\"": "revise from the CLI without the dashboard"
+        }
+      }
+    }
+  },
+
+  "dataModel": {
+    "drafts": {
+      "id": "uuid",
+      "orgId": "string",
+      "weekOf": "ISO date",
+      "slot": "mon|tue|wed|thu|fri",
+      "site": "slug or null",
+      "template": "list|stat|quote|screenshot",
+      "version": "int",
+      "contentJson": "slot values + captions per platform + hashtags + crop",
+      "renderSquare": "path",
+      "renderPortrait": "path",
+      "status": "pending|revising|approved|scheduled|rejected|posted|error",
+      "feedback": "text or null",
+      "generationContext": "JSON of the messages sent to Claude, for replay",
+      "bufferPostIds": "JSON map channel -> postId",
+      "scheduledAt": "ISO datetime or null",
+      "createdAt": "ISO datetime",
+      "updatedAt": "ISO datetime"
+    },
+    "runs": {
+      "id": "uuid",
+      "startedAt": "ISO datetime",
+      "finishedAt": "ISO datetime",
+      "draftsCreated": "int",
+      "errors": "JSON array",
+      "costEstimateUsd": "number"
+    },
+    "sites": {
+      "slug": "string",
+      "name": "string",
+      "url": "string",
+      "industry": "string",
+      "permissionToName": "boolean",
+      "recipe": "JSON: dismiss selectors, waitFor selectors, sections[{name, selector}]"
+    }
+  },
+
+  "workflow": {
+    "states": ["pending", "revising", "approved", "scheduled", "rejected", "posted", "error"],
+    "transitions": {
+      "pending -> approved": "reviewer clicks approve",
+      "pending -> revising": "reviewer submits feedback",
+      "revising -> pending": "revise.ts produces a new version",
+      "pending -> rejected": "reviewer clicks reject",
+      "approved -> scheduled": "publish.ts succeeds",
+      "scheduled -> posted": "optional poll of Buffer status",
+      "any -> error": "unhandled failure; message stored"
+    },
+    "weeklyRun": [
+      "Read calendar for next week: five slots, each with template and subject.",
+      "Capture screenshots for any site referenced this week (skip if cached under 7 days).",
+      "Generate one draft per slot.",
+      "Render both sizes per draft.",
+      "Send digest.",
+      "Stop. Wait for review."
+    ],
+    "holdRules": {
+      "minHoursBetweenApprovalAndPost": 24,
+      "testModeScheduleOffsetDays": 60
+    }
+  },
+
+  "claudeContract": {
+    "systemPrompt": "brand/brand.md + brand.json (colors, fonts, voice, hashtags, platforms) + template slot schema + the calendar slot's subject",
+    "userContent": "screenshots as image inputs (max 6) + manifest describing each + any prior feedback",
+    "responseSchema": {
+      "template": "list|stat|quote|screenshot",
+      "slots": "object keyed by that template's slot names",
+      "crop": {
+        "screenshot": "filename or null",
+        "region": "[x, y, w, h] in source pixels or null",
+        "treatment": "framed|dimmed"
+      },
+      "captions": {
+        "instagram": "string",
+        "facebook": "string",
+        "linkedin": "string",
+        "googlebusiness": "string"
+      },
+      "hashtags": {
+        "instagram": "string[]",
+        "facebook": "string[]",
+        "linkedin": "string[]"
+      },
+      "rationale": "one sentence, shown in the dashboard"
+    },
+    "validation": [
+      "template must exist in brand.json.templates",
+      "every slot for that template must be present and non-empty",
+      "headline slot word count within brand.json.voice.headlineWords",
+      "no banned words from brand.json.voice.banned",
+      "hashtag counts within brand.json.platforms[*].hashtags",
+      "googlebusiness caption has no hashtags and no 'link in bio'",
+      "crop region must fall inside the screenshot's dimensions"
+    ]
+  },
+
+  "templates": {
+    "dir": "templates/",
+    "files": ["list.html", "stat.html", "quote.html", "screenshot.html"],
+    "contract": "Each file is self-contained HTML+CSS. Slot values are injected into data-slot attributes. Colors and fonts come from CSS variables set at render time from brand.json. Icon is an inline SVG from brand/assets/icon.svg. Fonts are loaded locally from brand/assets/fonts/ so rendering is deterministic."
+  },
+
+  "environment": {
+    "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN"],
+    "optional": ["TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai"]
+  },
+
+  "guardrails": [
+    "No code path posts to Buffer from a draft that is not status=approved.",
+    "TEST_MODE defaults to true until explicitly flipped.",
+    "Client names appear in copy only when sites.<slug>.permissionToName is true.",
+    "Every Claude request and response is stored on the draft for replay and audit.",
+    "Cost per draft is logged; the weekly run aborts if projected cost exceeds COST_CEILING_USD (default 2.00)."
+  ],
+
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Templates render",
+      "done": "All four templates render from hard-coded JSON and visually match brand/examples/."
+    },
+    {
+      "id": "M2",
+      "name": "Capture works",
+      "done": "One client site captured desktop and mobile with a recipe; banners dismissed; manifest written."
+    },
+    {
+      "id": "M3",
+      "name": "Generate + render end to end",
+      "done": "`npm run weekly` produces five pending drafts with renders and valid JSON."
+    },
+    {
+      "id": "M4",
+      "name": "Dashboard + revise",
+      "done": "Approve, revise, reject work; a revision produces a new version and the old one is still viewable."
+    },
+    {
+      "id": "M5",
+      "name": "Publish in test mode",
+      "done": "An approved draft appears in Buffer's queue 60 days out on all four channels, then is deleted by the logged command."
+    },
+    {
+      "id": "M6",
+      "name": "Partner demo",
+      "done": "Digest email, dashboard walkthrough, one revision, one approval, post visible in Buffer."
+    }
+  ],
+
+  "laterAws": {
+    "trigger": "EventBridge weekly rule -> Lambda or Fargate task running `weekly`",
+    "storage": "S3 for assets, DynamoDB for drafts/runs",
+    "dashboard": "Lambda + API Gateway or a small Fargate service behind Cognito",
+    "email": "SES",
+    "secrets": "Secrets Manager"
+  }
+}

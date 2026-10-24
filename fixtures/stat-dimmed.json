@@ -3,7 +3,7 @@
   "template": "stat",
   "slots": {
     "number": "24h",
-    "claim": "Every inquiry gets a reply within a day.",
+    "claim": "Every inquiry answered same day.",
     "kicker": "Tell us what’s tangled."
   },
   "crop": { "screenshot": "sample-desktop.png", "region": [0, 0, 1440, 994], "treatment": "dimmed" }

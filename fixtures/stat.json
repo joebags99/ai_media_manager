@@ -3,7 +3,7 @@
   "template": "stat",
   "slots": {
     "number": "40%",
-    "claim": "Average increase in inquiries after launch.",
+    "claim": "Average lift in inquiries.",
     "kicker": "Start your project."
   }
 }

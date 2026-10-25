@@ -86,6 +86,19 @@ async function captureViewport(page: Page, site: Site, viewport: Viewport, dir: 
   })()`);
   await page.waitForTimeout(site.recipe.settleMs ?? 500);
 
+  // Sticky and fixed bars (navs, cookie strips, chat bubbles) bleed into section
+  // screenshots once the page is scrolled. Hide them during section shots; the
+  // full-page shot at the end shows them as a visitor would see them.
+  const hideSticky = `(() => {
+    const hidden = [];
+    for (const el of document.querySelectorAll('body *')) {
+      const pos = getComputedStyle(el).position;
+      if ((pos === 'fixed' || pos === 'sticky') && !el.dataset.adKeep) { el.dataset.adHidden = '1'; el.style.setProperty('visibility', 'hidden', 'important'); hidden.push(el); }
+    }
+    return hidden.length;
+  })()`;
+  const showSticky = `(() => { for (const el of document.querySelectorAll('[data-ad-hidden]')) { el.style.removeProperty('visibility'); delete el.dataset.adHidden; } })()`;
+
   const shots: Shot[] = [];
   for (const section of site.recipe.sections) {
     const file = `${section.name}-${viewport}.png`;
@@ -99,6 +112,10 @@ async function captureViewport(page: Page, site: Site, viewport: Viewport, dir: 
         continue;
       }
       await loc.scrollIntoViewIfNeeded({ timeout: 5_000 });
+      // Keep the section itself and its ancestors visible even if they are sticky.
+      await loc.evaluate((el) => { let n: HTMLElement | null = el as HTMLElement; while (n) { n.dataset['adKeep'] = '1'; n = n.parentElement; } });
+      const hiddenCount = (await page.evaluate(hideSticky)) as number;
+      if (hiddenCount) log(`hid ${hiddenCount} sticky/fixed element(s) for ${section.name}`);
       await page.waitForTimeout(200);
       const box = await loc.boundingBox();
       if (!box || box.width < 10 || box.height < 10) {
@@ -112,6 +129,9 @@ async function captureViewport(page: Page, site: Site, viewport: Viewport, dir: 
       const msg = (err instanceof Error ? err.message : String(err)).split('\n')[0];
       warnings.push(`${viewport}: "${section.name}" failed: ${msg}`);
       log(`warn: ${section.name} at ${viewport}: ${msg}`);
+    } finally {
+      await page.evaluate(showSticky);
+      await page.evaluate(`(() => { for (const el of document.querySelectorAll('[data-ad-keep]')) delete el.dataset.adKeep; })()`);
     }
   }
   // Always keep a full-viewport shot of the top of the page too.

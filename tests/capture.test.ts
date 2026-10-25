@@ -64,3 +64,29 @@ describe('site kind', () => {
     expect(client.kind).toBe('client');
   });
 });
+
+describe('sticky elements', () => {
+  it('does not let a sticky nav bleed into a section screenshot', async () => {
+    const log: string[] = [];
+    const m = await captureSite('sample-sticky', { log: (l) => log.push(l) });
+    expect(log.some((l) => /hid 1 sticky/.test(l))).toBe(true);
+    const shot = m.shots.find((s) => s.section === 'reviews' && s.viewport === 'desktop')!;
+    const png = await readFile(path.join(siteDir('sample-sticky'), shot.file));
+    // Sample a pixel where the green nav would sit (top-left) with a tiny decode of the PNG via Playwright.
+    const { chromium } = await import('playwright');
+    const b = await chromium.launch();
+    const p = await b.newPage();
+    const rgb = await p.evaluate(async (data) => {
+      const img = new Image();
+      img.src = 'data:image/png;base64,' + data;
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      return [...ctx.getImageData(5, 5, 1, 1).data].slice(0, 3);
+    }, png.toString('base64'));
+    await b.close();
+    expect(rgb).toEqual([255, 255, 255]);
+  }, 60_000);
+});

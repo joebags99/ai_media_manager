@@ -234,7 +234,7 @@
 
   "environment": {
     "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN", "PUBLIC_BASE_URL (for publishing: where Buffer can fetch renders)"],
-    "optional": ["ANTHROPIC_WORKSPACE_ID (org-level keys only)", "BUFFER_API_URL=https://api.buffer.com", "TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "DIGEST_TO", "DIGEST_FROM", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
+    "optional": ["ANTHROPIC_WORKSPACE_ID (org-level keys only)", "GOOGLE_PLACES_API_KEY + GOOGLE_PLACE_ID (import Google reviews)", "BUFFER_API_URL=https://api.buffer.com", "TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "DIGEST_TO", "DIGEST_FROM", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
   },
 
   "guardrails": [

@@ -1,7 +1,8 @@
 // Dashboard route for the review list: paste client reviews (Google Business, the site,
 // anywhere) so the quote template can draw from them.
 import type { Express, Request, Response, RequestHandler } from 'express';
-import { addReview, listReviews, removeReview, type Review } from '../reviews.js';
+import { addReview, listReviews, removeReview, findPlaceId, googleConfig, importGoogleReviews, type Review } from '../reviews.js';
+import { startJob } from '../jobs.js';
 import { badge, empty, esc, notice, pageHead, section } from './html.js';
 
 type Page = (title: string, body: string, active: string) => string;
@@ -20,6 +21,40 @@ export function registerReviewRoutes(app: Express, page: Page, wrap: Wrap): void
       <button class="primary">Add review</button>
     </form>`;
 
+  const googleBlock = (found?: string) => {
+    const key = Boolean(process.env.GOOGLE_PLACES_API_KEY?.trim());
+    const placeId = process.env.GOOGLE_PLACE_ID?.trim() || '';
+    if (!key) return notice('info', '<b>GOOGLE_PLACES_API_KEY</b> is not set. In Google Cloud Console: create a project, enable <i>Places API (New)</i>, create an API key, and put it in .env as GOOGLE_PLACES_API_KEY. Then set GOOGLE_PLACE_ID (find it below).');
+    if (!placeId) return `${notice('warn', '<b>GOOGLE_PLACE_ID</b> is not set. Search for the business, copy the id into .env as GOOGLE_PLACE_ID, restart.')}
+      <form method="post" action="/reviews/find-place" class="row"><input name="query" placeholder="Daedabyte Web Solutions, Mt Jackson VA" style="min-width:360px" required><button class="secondary">Find Place ID</button></form>
+      ${found ? `<pre class="muted" style="margin-top:10px">${esc(found)}</pre>` : ''}`;
+    return `<form method="post" action="/reviews/import" class="row"><button class="primary">Import from Google</button><span class="hint">Place ID <code>${esc(placeId)}</code></span></form>`;
+  };
+
+  app.post('/reviews/import', (_req, res) => {
+    const job = startJob('reviews', 'Import Google reviews', async (log) => {
+      const r = await importGoogleReviews(googleConfig(), log);
+      log(`${r.added.length} added, ${r.skipped} skipped`);
+      return r.added.length;
+    });
+    res.redirect(`/jobs/${job.id}?next=/reviews`);
+  });
+
+  app.post(
+    '/reviews/find-place',
+    wrap(async (req, res) => {
+      const q = String((req.body as Record<string, string>)['query'] ?? '').trim();
+      try {
+        const key = process.env.GOOGLE_PLACES_API_KEY?.trim() ?? '';
+        const hits = await findPlaceId(key, q);
+        const text = hits.length ? hits.map((h) => `${h.id}\n  ${h.name} \u2014 ${h.address}`).join('\n') : 'No places found for that search.';
+        res.redirect(`/reviews?found=${encodeURIComponent(text)}`);
+      } catch (err) {
+        res.redirect(`/reviews?found=${encodeURIComponent((err as Error).message)}`);
+      }
+    }),
+  );
+
   app.get(
     '/reviews',
     wrap(async (req, res) => {
@@ -34,7 +69,8 @@ export function registerReviewRoutes(app: Express, page: Page, wrap: Wrap): void
           'Reviews',
           'What clients have said about Daedabyte, pasted from Google Business or the website. The quote template picks one and copies a passage word for word; the validator rejects anything that is not a verbatim match.',
         ) +
-        section('Add a review', 'Open your Google Business profile, copy a review, paste it here.', form({}, typeof req.query['error'] === 'string' ? req.query['error'] : undefined)) +
+        section('Import from Google', 'Pulls the reviews Google exposes for your Business Profile (up to five, Google picks which) through the Places API. Already-imported ones are skipped; reviews under 4 stars are left out.', googleBlock(typeof req.query['found'] === 'string' ? req.query['found'] : undefined)) +
+        section('Add a review by hand', 'For anything Google does not return, or reviews from elsewhere: copy it, paste it here.', form({}, typeof req.query['error'] === 'string' ? req.query['error'] : undefined)) +
         section(`On file (${reviews.length})`, '', reviews.length ? `<div class="grid wide">${rows}</div>` : empty('No reviews yet', 'Until there is at least one, the quote template is unavailable (unless our own site has a captured testimonials section).'));
       res.send(page('Reviews', body, '/reviews'));
     }),

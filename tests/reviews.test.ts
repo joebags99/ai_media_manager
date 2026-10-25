@@ -31,3 +31,29 @@ describe('quotes from reviews', () => {
     expect(validateContent(brand, { ...b, template: 'backdrop', crop: { screenshot: 'hero-desktop.png', region: null, treatment: 'framed' } }, dims)).toContain('backdrop template needs crop.treatment "dimmed"');
   });
 });
+
+describe('google import', () => {
+  it('adds new 4+ star reviews, skips duplicates and short ones', async () => {
+    const { importGoogleReviews, listReviews, removeReview } = await import('../src/reviews.js');
+    const before = await listReviews();
+    const payload = { displayName: { text: 'Daedabyte Web Solutions' }, reviews: [
+      { name: 'r1', rating: 5, text: { text: 'Joe rebuilt our whole site and it finally loads fast on phones.' }, authorAttribution: { displayName: 'Pat Lee' }, publishTime: '2026-09-01T12:00:00Z' },
+      { name: 'r2', rating: 3, text: { text: 'It was okay, took a while to get going but ended up fine.' }, authorAttribution: { displayName: 'Meh' } },
+      { name: 'r3', rating: 5, text: { text: 'Great.' }, authorAttribution: { displayName: 'Short' } },
+      { name: 'r4', rating: 5, text: { text: 'Joe rebuilt our whole site and it finally loads fast on phones.' }, authorAttribution: { displayName: 'Dup' } },
+    ] };
+    const fakeFetch = (async () => new Response(JSON.stringify(payload), { status: 200 })) as unknown as typeof fetch;
+    const log: string[] = [];
+    const r = await importGoogleReviews({ apiKey: 'k', placeId: 'p', fetch: fakeFetch }, (l) => log.push(l));
+    try {
+      expect(r.place).toBe('Daedabyte Web Solutions');
+      expect(r.added.map((a) => a.name)).toEqual(['Pat Lee']);
+      expect(r.added[0]!.date).toBe('2026-09-01');
+      expect(r.skipped).toBe(3);
+      const again = await importGoogleReviews({ apiKey: 'k', placeId: 'p', fetch: fakeFetch }, () => {});
+      expect(again.added).toHaveLength(0);
+    } finally {
+      for (const a of (await listReviews()).filter((x) => !before.some((b) => b.id === x.id))) await removeReview(a.id);
+    }
+  });
+});

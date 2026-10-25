@@ -51,3 +51,86 @@ export function reviewForQuote(quote: string, reviews: Review[]): Review | null 
   if (!q) return null;
   return reviews.find((r) => norm(r.text).includes(q)) ?? null;
 }
+
+// ---- Google Places API (New) ------------------------------------------------------
+// GET https://places.googleapis.com/v1/places/{placeId}  with headers
+//   X-Goog-Api-Key: <GOOGLE_PLACES_API_KEY>   X-Goog-FieldMask: displayName,reviews
+// Returns up to five of the place's reviews (Google picks which). The owner-side
+// Business Profile API returns all of them but needs OAuth plus a quota application.
+
+export interface PlacesReview {
+  name: string;
+  rating?: number;
+  text?: { text: string; languageCode?: string };
+  authorAttribution?: { displayName?: string };
+  publishTime?: string;
+}
+
+export interface GoogleConfig {
+  apiKey: string;
+  placeId: string;
+  fetch?: typeof fetch;
+}
+
+export function googleConfig(): GoogleConfig {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
+  const placeId = process.env.GOOGLE_PLACE_ID?.trim();
+  if (!apiKey) throw new Error('GOOGLE_PLACES_API_KEY is not set');
+  if (!placeId) throw new Error('GOOGLE_PLACE_ID is not set');
+  return { apiKey, placeId };
+}
+
+export async function fetchGoogleReviews(cfg: GoogleConfig): Promise<{ place: string; reviews: PlacesReview[] }> {
+  const f = cfg.fetch ?? fetch;
+  const res = await f(`https://places.googleapis.com/v1/places/${encodeURIComponent(cfg.placeId)}`, {
+    headers: { 'X-Goog-Api-Key': cfg.apiKey, 'X-Goog-FieldMask': 'displayName,reviews' },
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Google Places ${res.status}: ${text.slice(0, 300)}`);
+  const body = JSON.parse(text) as { displayName?: { text?: string }; reviews?: PlacesReview[] };
+  return { place: body.displayName?.text ?? cfg.placeId, reviews: body.reviews ?? [] };
+}
+
+/** Look up a Place ID from a business name and area (Places API New text search). */
+export async function findPlaceId(apiKey: string, query: string, f: typeof fetch = fetch): Promise<{ id: string; name: string; address: string }[]> {
+  const res = await f('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress' },
+    body: JSON.stringify({ textQuery: query, maxResultCount: 5 }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Google Places ${res.status}: ${text.slice(0, 300)}`);
+  const body = JSON.parse(text) as { places?: { id: string; displayName?: { text?: string }; formattedAddress?: string }[] };
+  return (body.places ?? []).map((p) => ({ id: p.id, name: p.displayName?.text ?? '', address: p.formattedAddress ?? '' }));
+}
+
+/** Import Google reviews not already on file (matched by text). Returns the ones added. */
+export async function importGoogleReviews(cfg: GoogleConfig, log: (s: string) => void = () => {}): Promise<{ added: Review[]; skipped: number; place: string }> {
+  const { place, reviews } = await fetchGoogleReviews(cfg);
+  log(`Google returned ${reviews.length} review(s) for ${place}`);
+  const existing = await listReviews();
+  const have = new Set(existing.map((r) => norm(r.text)));
+  const added: Review[] = [];
+  let skipped = 0;
+  for (const g of reviews) {
+    const body = g.text?.text?.trim().replace(/\s+/g, ' ') ?? '';
+    if (body.length < 20) {
+      skipped++;
+      continue;
+    }
+    if (have.has(norm(body))) {
+      skipped++;
+      continue;
+    }
+    if (g.rating !== undefined && g.rating < 4) {
+      log(`skipping a ${g.rating}-star review from ${g.authorAttribution?.displayName ?? 'unknown'}`);
+      skipped++;
+      continue;
+    }
+    const r = await addReview({ name: g.authorAttribution?.displayName ?? 'Google reviewer', business: '', text: body, source: 'google', date: g.publishTime ? g.publishTime.slice(0, 10) : null });
+    have.add(norm(body));
+    added.push(r);
+    log(`added review from ${r.name}${r.date ? ` (${r.date})` : ''}`);
+  }
+  return { added, skipped, place };
+}

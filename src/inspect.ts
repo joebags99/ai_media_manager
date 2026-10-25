@@ -207,6 +207,7 @@ export async function suggestRecipe(site: { name: string; url: string; industry:
   const taken = new Set<string>();
   const sections = result.data.sections
     .filter((s) => byIndex.has(s.candidate))
+    .slice(0, 4)
     .map((s) => {
       let name = s.name;
       for (let k = 2; taken.has(name); k++) name = `${s.name}-${k}`;

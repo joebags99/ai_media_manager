@@ -93,13 +93,30 @@ function redactImages(messages: MessageParam[]): unknown {
   }));
 }
 
+// Structured outputs accept only a subset of JSON Schema (types, enum, const, anyOf,
+// $ref, additionalProperties:false). Length and range keywords are rejected with a 400,
+// so strip them here and enforce those limits in code after parsing.
+const UNSUPPORTED = new Set(['minItems', 'maxItems', 'uniqueItems', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength', 'pattern', 'minProperties', 'maxProperties']);
+export function cleanSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(cleanSchema);
+  if (schema && typeof schema === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(schema as Record<string, unknown>)) {
+      if (UNSUPPORTED.has(k)) continue;
+      out[k] = k === 'enum' || k === 'required' ? v : cleanSchema(v);
+    }
+    return out;
+  }
+  return schema;
+}
+
 export async function askJson<T>(call: JsonCall): Promise<JsonResult<T>> {
   const params: Anthropic.Beta.MessageCreateParamsNonStreaming = {
     model: MODEL,
     max_tokens: call.maxTokens ?? 4096,
     system: [{ type: 'text', text: call.system, cache_control: { type: 'ephemeral' } }],
     messages: call.messages,
-    output_config: { effort: call.effort ?? 'medium', format: { type: 'json_schema', schema: call.schema } },
+    output_config: { effort: call.effort ?? 'medium', format: { type: 'json_schema', schema: cleanSchema(call.schema) as Record<string, unknown> } },
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
   };

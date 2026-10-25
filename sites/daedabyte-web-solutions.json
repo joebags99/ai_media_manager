@@ -1,0 +1,32 @@
+{
+  "name": "Daedabyte Web Solutions",
+  "url": "https://daedabyte.com/",
+  "industry": "Web Development",
+  "kind": "own",
+  "permissionToName": true,
+  "recipe": {
+    "dismiss": [],
+    "waitFor": [
+      "header.rd-hero"
+    ],
+    "settleMs": 800,
+    "sections": [
+      {
+        "name": "hero",
+        "selector": "header.rd-hero"
+      },
+      {
+        "name": "work",
+        "selector": "#work"
+      },
+      {
+        "name": "services",
+        "selector": "#services"
+      },
+      {
+        "name": "testimonials",
+        "selector": "#proof"
+      }
+    ]
+  }
+}

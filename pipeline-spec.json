@@ -1,5 +1,4 @@
 {
-  "$schema": "./pipeline-spec.schema.json",
   "name": "daedabyte-ad-pipeline",
   "version": "0.1.0",
   "purpose": "Generate one on-brand social ad per weekday for Daedabyte, hold it for human review, and schedule approved posts to Buffer.",
@@ -11,6 +10,7 @@
     "Every image is rendered from a fixed HTML template so brand colors, fonts, and layout never drift.",
     "Claude writes copy and art-directs; it never draws pixels.",
     "Nothing posts without an explicit approval click.",
+    "Every manual step (previewing templates, capturing a site, generating, revising, approving, test publishing, cleaning up test posts) is run and checked from the dashboard. The CLI exists for scheduled automation, not for day-to-day testing.",
     "Single-tenant now, but every record carries an orgId so multi-tenant is additive later."
   ],
   "nonGoals": [
@@ -98,7 +98,8 @@
       },
       "dashboard": {
         "file": "src/dashboard.ts",
-        "does": "Express app on localhost:3000. Lists pending drafts with image, captions per platform, crop region overlay. Buttons: approve, revise (textarea), reject.",
+        "does": "Express app on localhost:3000. Lists pending drafts with image, captions per platform, crop region overlay. Buttons: approve, revise (textarea), reject. Also the operator console for testing: template previews from fixtures, run capture for a site, run the weekly generation, publish an approved draft in test mode, and delete test posts from Buffer. Long jobs show progress and logs in the page.",
+        "growth": "A minimal shell ships in M2 and gains one page per milestone, so each milestone is checked in the UI rather than from the terminal.",
         "auth": {
           "local": "none",
           "prod": "Cognito"
@@ -211,7 +212,7 @@
     "validation": [
       "template must exist in brand.json.templates",
       "every slot for that template must be present and non-empty",
-      "headline slot word count within brand.json.voice.headlineWords",
+      "headline word count within brand.json.voice.headlineWords, applied to screenshot.headline, stat.claim, and list.verdict",
       "no banned words from brand.json.voice.banned",
       "hashtag counts within brand.json.platforms[*].hashtags",
       "googlebusiness caption has no hashtags and no 'link in bio'",
@@ -227,7 +228,7 @@
 
   "environment": {
     "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN"],
-    "optional": ["TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai"]
+    "optional": ["TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
   },
 
   "guardrails": [
@@ -247,12 +248,12 @@
     {
       "id": "M2",
       "name": "Capture works",
-      "done": "One client site captured desktop and mobile with a recipe; banners dismissed; manifest written."
+      "done": "One client site captured desktop and mobile with a recipe; banners dismissed; manifest written. Triggered and reviewed from the dashboard shell, which also shows the M1 template previews."
     },
     {
       "id": "M3",
       "name": "Generate + render end to end",
-      "done": "`npm run weekly` produces five pending drafts with renders and valid JSON."
+      "done": "Running the weekly job from the dashboard produces five pending drafts with renders and valid JSON (`npm run weekly` does the same for automation)."
     },
     {
       "id": "M4",
@@ -262,7 +263,7 @@
     {
       "id": "M5",
       "name": "Publish in test mode",
-      "done": "An approved draft appears in Buffer's queue 60 days out on all four channels, then is deleted by the logged command."
+      "done": "An approved draft is test-published from the dashboard, appears in Buffer's queue 60 days out on all four channels, then is deleted from the dashboard (the delete command is still logged)."
     },
     {
       "id": "M6",

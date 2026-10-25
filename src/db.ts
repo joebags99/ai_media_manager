@@ -6,7 +6,9 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, DB_PATH, ORG_ID } from './config.js';
 
-export type DraftStatus = 'pending' | 'revising' | 'approved' | 'scheduled' | 'rejected' | 'posted' | 'error';
+export type DraftStatus = 'pending' | 'revising' | 'approved' | 'scheduled' | 'rejected' | 'posted' | 'error' | 'archived';
+/** weekOf value for drafts shelved in the library (not tied to a week). */
+export const LIBRARY_WEEK = 'library';
 export type Slot = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 /** Week of Monday through Sunday. Saturday and Sunday are normally empty unless a holiday falls there. */
 export const SLOTS: Slot[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -34,6 +36,8 @@ export interface Draft {
   bufferPostIds: string | null;
   scheduledAt: string | null;
   errorMessage: string | null;
+  /** Status the draft had before it was shelved; restored when placed. */
+  archivedStatus: DraftStatus | null;
   costUsd: number;
   createdAt: string;
   updatedAt: string;
@@ -90,6 +94,9 @@ export function openDb(file = DB_PATH): Database.Database {
   db = new Database(file);
   db.pragma('journal_mode = WAL');
   db.exec(SCHEMA);
+  // Additive migrations for columns added after the first release.
+  const cols = new Set((db.prepare('PRAGMA table_info(drafts)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('archivedStatus')) db.exec('ALTER TABLE drafts ADD COLUMN archivedStatus TEXT');
   return db;
 }
 
@@ -117,14 +124,15 @@ export function insertDraft(d: NewDraft): Draft {
     bufferPostIds: null,
     scheduledAt: null,
     errorMessage: null,
+    archivedStatus: null,
     createdAt: now(),
     updatedAt: now(),
     ...d,
   };
   openDb()
     .prepare(
-      `INSERT INTO drafts (id, orgId, weekOf, slot, site, template, version, contentJson, renderSquare, renderPortrait, status, feedback, generationContext, bufferPostIds, scheduledAt, errorMessage, costUsd, createdAt, updatedAt)
-       VALUES (@id, @orgId, @weekOf, @slot, @site, @template, @version, @contentJson, @renderSquare, @renderPortrait, @status, @feedback, @generationContext, @bufferPostIds, @scheduledAt, @errorMessage, @costUsd, @createdAt, @updatedAt)`,
+      `INSERT INTO drafts (id, orgId, weekOf, slot, site, template, version, contentJson, renderSquare, renderPortrait, status, feedback, generationContext, bufferPostIds, scheduledAt, errorMessage, archivedStatus, costUsd, createdAt, updatedAt)
+       VALUES (@id, @orgId, @weekOf, @slot, @site, @template, @version, @contentJson, @renderSquare, @renderPortrait, @status, @feedback, @generationContext, @bufferPostIds, @scheduledAt, @errorMessage, @archivedStatus, @costUsd, @createdAt, @updatedAt)`,
     )
     .run(row);
   return row;
@@ -147,6 +155,7 @@ export function getDraft(id: string): Draft | undefined {
 export function listDrafts(opts: { weekOf?: string; status?: DraftStatus | DraftStatus[]; latestOnly?: boolean } = {}): Draft[] {
   const where: string[] = ['orgId = @orgId'];
   const params: Record<string, unknown> = { orgId: ORG_ID };
+  if (!opts.weekOf) where.push(`weekOf != '${LIBRARY_WEEK}'`);
   if (opts.weekOf) {
     where.push('weekOf = @weekOf');
     params['weekOf'] = opts.weekOf;
@@ -157,17 +166,32 @@ export function listDrafts(opts: { weekOf?: string; status?: DraftStatus | Draft
     list.forEach((s, i) => (params[`s${i}`] = s));
   }
   if (opts.latestOnly) {
-    where.push('version = (SELECT MAX(version) FROM drafts d2 WHERE d2.orgId = drafts.orgId AND d2.weekOf = drafts.weekOf AND d2.slot = drafts.slot)');
+    where.push("status != 'archived' AND version = (SELECT MAX(version) FROM drafts d2 WHERE d2.orgId = drafts.orgId AND d2.weekOf = drafts.weekOf AND d2.slot = drafts.slot AND d2.status != 'archived')");
   }
   return openDb()
     .prepare(`SELECT * FROM drafts WHERE ${where.join(' AND ')} ORDER BY weekOf DESC, CASE slot WHEN 'mon' THEN 1 WHEN 'tue' THEN 2 WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 WHEN 'fri' THEN 5 WHEN 'sat' THEN 6 ELSE 7 END, version DESC`)
     .all(params) as Draft[];
 }
 
+export function listLibrary(): Draft[] {
+  return openDb().prepare('SELECT * FROM drafts WHERE orgId = ? AND status = ? ORDER BY updatedAt DESC').all(ORG_ID, 'archived') as Draft[];
+}
+
+/** Highest version in a week/slot (0 when empty). */
+export function maxVersion(weekOf: string, slot: Slot): number {
+  const r = openDb().prepare('SELECT MAX(version) AS v FROM drafts WHERE orgId = ? AND weekOf = ? AND slot = ?').get(ORG_ID, weekOf, slot) as { v: number | null };
+  return r.v ?? 0;
+}
+
+/** The slot's current draft (latest version), if any and not shelved/rejected. */
+export function currentDraft(weekOf: string, slot: Slot): Draft | undefined {
+  return listDrafts({ weekOf, latestOnly: true }).find((d) => d.slot === slot && d.status !== 'rejected' && d.status !== 'archived');
+}
+
 export function recentDraftSummaries(limit = 20): { weekOf: string; slot: string; template: string; site: string | null; headline: string }[] {
   const rows = openDb()
-    .prepare('SELECT weekOf, slot, template, site, contentJson FROM drafts WHERE orgId = ? AND status != ? ORDER BY createdAt DESC LIMIT ?')
-    .all(ORG_ID, 'rejected', limit) as { weekOf: string; slot: string; template: string; site: string | null; contentJson: string }[];
+    .prepare("SELECT weekOf, slot, template, site, contentJson FROM drafts WHERE orgId = ? AND status NOT IN ('rejected', 'archived', 'revising') ORDER BY createdAt DESC LIMIT ?")
+    .all(ORG_ID, limit) as { weekOf: string; slot: string; template: string; site: string | null; contentJson: string }[];
   return rows.map((r) => {
     const c = JSON.parse(r.contentJson) as { slots?: Record<string, string> };
     const s = c.slots ?? {};

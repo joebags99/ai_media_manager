@@ -9,7 +9,9 @@ import { hasApiKey } from '../claude.js';
 import { readManifest, siteDir } from '../capture.js';
 import { loadBrand, type Brand } from '../render.js';
 import { validateContent, type DraftContent } from '../validate.js';
-import { approve, reject } from '../workflow.js';
+import { approve, reject, archive, duplicate } from '../workflow.js';
+import { regenerateCaptions } from '../generate.js';
+import { slotPicker } from './library.js';
 import { reviseDraft } from '../revise.js';
 import { TEST_MODE } from '../config.js';
 import { defaultPlatforms } from '../publish.js';
@@ -21,7 +23,9 @@ type Wrap = (fn: (req: Request, res: Response) => Promise<void>) => RequestHandl
 
 const TEMPLATES = ['headline', 'question', 'tip', 'contrast', 'stat', 'list', 'quote', 'screenshot', 'detail', 'backdrop', 'mobile', 'holiday', 'none'] as const;
 const DAY_NAMES: Record<Slot, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
+const TEXT_HEAVY = new Set(['list', 'headline', 'contrast', 'question', 'tip', 'stat', 'holiday', 'quote']);
 const STATUS_HELP: Record<string, string> = {
+  archived: 'Shelved in the Library. Place it into a day to use it.',
   pending: 'Waiting for your review.',
   revising: 'Superseded by a newer version.',
   approved: 'Approved. Ready to publish.',
@@ -94,7 +98,39 @@ function actions(d: Draft, versions: Draft[], brand: Brand): string {
   }
   if (d.status === 'revising') return notice('info', 'A revision is in progress for this version.');
   if (d.status === 'rejected') return notice('info', STATUS_HELP['rejected']!);
+  if (d.status === 'archived') return section('In the library', 'Place it into a day; whatever is there already gets shelved instead.', slotPicker(`/library/${d.id}/place`, 'Place', 'primary'));
   return '';
+}
+
+/** Shelve / duplicate / recaption, for drafts that are current and not yet in Buffer. */
+function utilities(d: Draft): string {
+  if (!['pending', 'approved', 'rejected'].includes(d.status)) return '';
+  return section(
+    'Reuse',
+    'Shelve keeps this draft in the Library for a last-minute swap later. Duplicate copies it into another day as a new pending draft. New captions asks Claude for different captions and hashtags without touching the image.',
+    `<div class="row" style="align-items:flex-start;gap:18px;flex-wrap:wrap">
+      ${d.status !== 'rejected' ? `<form method="post" action="/drafts/${d.id}/archive" class="card tight"><b>Shelve for later</b><div style="margin-top:8px"><button class="secondary small">Shelve</button></div></form>` : ''}
+      <div class="card tight"><b>Duplicate to</b><div style="margin-top:8px">${slotPicker(`/drafts/${d.id}/duplicate`, 'Duplicate')}</div></div>
+      <form method="post" action="/drafts/${d.id}/captions" class="card tight" style="flex:1 1 320px"><b>New captions</b><div class="row" style="margin-top:8px"><input name="note" placeholder="optional: what to change" style="flex:1"><button class="secondary small">Ask Claude</button></div></form>
+    </div>`,
+  );
+}
+
+/** Edit slot text and alt text by hand, then re-render. */
+function textEditor(d: Draft, c: DraftContent, brand: Brand): string {
+  if (!['pending', 'approved', 'archived'].includes(d.status)) return '';
+  const slots = (brand.templates[d.template]?.slots ?? []).filter((s) => s !== 'crop');
+  return section(
+    'Edit text',
+    'Typo-level fixes without a Claude round trip. Saves into this version and re-renders; the same word-count and banned-word rules apply.',
+    `<form method="post" action="/drafts/${d.id}/text" class="card">
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+        ${slots.map((s) => `<label class="field" style="margin:0"><b>${esc(s)}</b>${(c.slots[s] ?? '').length > 60 ? `<textarea name="slot-${s}" rows="3">${esc(c.slots[s] ?? '')}</textarea>` : `<input name="slot-${s}" value="${esc(c.slots[s] ?? '')}">`}</label>`).join('')}
+        <label class="field" style="margin:0"><b>Alt text</b><input name="altText" value="${esc(c.altText ?? '')}" maxlength="200"><span class="hint">Read by screen readers and used by LinkedIn indexing.</span></label>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="secondary">Save text and re-render</button>${c.editedByHand ? '<span class="hint">Edited by hand.</span>' : ''}</div>
+    </form>`,
+  );
 }
 
 /** Crop adjuster for drafts that use a screenshot. */
@@ -224,6 +260,61 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
     }
   };
   app.post('/drafts/:id/approve', act((id) => approve(id)));
+  app.post('/drafts/:id/archive', (req, res) => {
+    const id = String(req.params['id']);
+    try {
+      archive(id);
+      res.redirect('/library');
+    } catch (err) {
+      res.status(400).send(page('Draft', pageHead('Not shelved', esc((err as Error).message), `<a class="btn secondary" href="/drafts/${id}">Back</a>`), '/'));
+    }
+  });
+  app.post('/drafts/:id/duplicate', (req, res) => {
+    const id = String(req.params['id']);
+    const b = req.body as Record<string, string>;
+    const weekOf = mondayOf(b['weekOf'] || nextWeekOf());
+    const slot = (SLOTS as string[]).includes(b['slot'] ?? '') ? (b['slot'] as Slot) : 'mon';
+    const copy = duplicate(id, weekOf, slot);
+    const job = startJob('render', `Duplicate to ${DAY_NAMES[slot]} ${weekOf}`, async (log) => {
+      await renderDraftRow(copy);
+      log(`created v${copy.version} on ${DAY_NAMES[slot]} ${weekOf}`);
+    });
+    res.redirect(`/jobs/${job.id}?next=/drafts/${copy.id}`);
+  });
+  app.post('/drafts/:id/captions', (req, res) => {
+    const id = String(req.params['id']);
+    const note = String((req.body as Record<string, string>)['note'] ?? '').trim();
+    const job = startJob('captions', `New captions for ${id.slice(0, 8)}`, (log) => regenerateCaptions(id, note, { log }));
+    res.redirect(`/jobs/${job.id}?next=/drafts/${id}`);
+  });
+  app.post(
+    '/drafts/:id/text',
+    wrap(async (req, res) => {
+      const d = getDraft(String(req.params['id']));
+      if (!d) {
+        res.status(404).send('unknown draft');
+        return;
+      }
+      const b = req.body as Record<string, string>;
+      const brand = await loadBrand();
+      const c = JSON.parse(d.contentJson) as DraftContent;
+      const slots = (brand.templates[d.template]?.slots ?? []).filter((s) => s !== 'crop');
+      const next: DraftContent = { ...c, slots: Object.fromEntries(slots.map((s) => [s, (b[`slot-${s}`] ?? c.slots[s] ?? '').trim()])), altText: (b['altText'] ?? '').trim() || c.altText, editedByHand: true };
+      const m = d.site ? await readManifest(d.site) : null;
+      const dims = Object.fromEntries((m?.shots ?? []).map((s) => [s.file, { width: s.width, height: s.height }]));
+      const errors = validateContent(brand, next, dims, d.template).filter((e) => /slot|words|banned|accentWord/.test(e));
+      if (errors.length) {
+        res.status(400).send(page('Edit text', pageHead('Text not saved', esc(errors.join('; ')), `<a class="btn secondary" href="/drafts/${d.id}">Back</a>`), '/'));
+        return;
+      }
+      const updated = updateDraft(d.id, { contentJson: JSON.stringify(next) });
+      const job = startJob('render', `Re-render ${d.slot} ${d.weekOf}`, async (log) => {
+        const r = await renderDraftRow(updated);
+        log(`wrote ${path.basename(r.renderSquare!)} and ${path.basename(r.renderPortrait!)}`);
+      });
+      res.redirect(`/jobs/${job.id}?next=/drafts/${d.id}`);
+    }),
+  );
   app.post('/drafts/:id/reject', act((id, b) => reject(id, b['reason'])));
   app.post('/drafts/:id/revise', (req, res) => {
     const id = String(req.params['id']);
@@ -263,7 +354,8 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         return;
       }
       const c = JSON.parse(d.contentJson) as DraftContent;
-      const versions = listDrafts({ weekOf: d.weekOf }).filter((x) => x.slot === d.slot);
+      const brand = await loadBrand();
+      const versions = d.status === 'archived' ? [d] : listDrafts({ weekOf: d.weekOf }).filter((x) => x.slot === d.slot);
       const ctx = JSON.parse(d.generationContext) as { plan?: PlanDay; calls?: { costUsd: number }[] };
       const sq = renderUrl(d.renderSquare);
       const pt = renderUrl(d.renderPortrait);
@@ -273,8 +365,8 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
       };
       const body =
         pageHead(
-          `${DAY_NAMES[d.slot]} ${badge(d.status)}`,
-          `Week of ${d.weekOf} · ${esc(d.template)} template${d.site ? ` · <a href="/sites/${esc(d.site)}">${esc(d.site)}</a>` : ''} · version ${d.version} · $${d.costUsd.toFixed(3)}${versions.length > 1 ? ` · versions: ${versions.map((v) => (v.id === d.id ? `<b>v${v.version}</b>` : `<a href="/drafts/${v.id}">v${v.version}</a>`)).join(' ')}` : ''}<br><span class="muted">${esc(STATUS_HELP[d.status] ?? '')}</span>`,
+          `${d.status === 'archived' ? 'Shelved draft' : DAY_NAMES[d.slot]} ${badge(d.status)}`,
+          `${d.status === 'archived' ? 'In the <a href="/library">Library</a>' : `Week of ${d.weekOf}`} · ${esc(d.template)} template${d.site ? ` · <a href="/sites/${esc(d.site)}">${esc(d.site)}</a>` : ''} · version ${d.version} · $${d.costUsd.toFixed(3)}${versions.length > 1 ? ` · versions: ${versions.map((v) => (v.id === d.id ? `<b>v${v.version}</b>` : `<a href="/drafts/${v.id}">v${v.version}</a>`)).join(' ')}` : ''}<br><span class="muted">${esc(STATUS_HELP[d.status] ?? '')}</span>`,
           `<form method="post" action="/drafts/${d.id}/rerender" class="inline"><button class="secondary">Re-render</button></form><a class="btn secondary" href="/?week=${d.weekOf}">All drafts</a>`,
           'Draft',
         ) +
@@ -286,7 +378,11 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
             <div>${pt ? `<a href="${pt}" target="_blank"><img src="${pt}?v=${d.version}" alt="portrait" style="width:240px;border-radius:6px"></a>` : ''}<div class="muted" style="margin-top:4px">1080×1350 · Instagram</div></div>
           </div></div></div>` +
         (d.template === 'quote' ? notice('info', 'Quote template: the quote was checked against the Reviews page for a verbatim match (or against our testimonials screenshot if no reviews are on file).') : '') +
-        actions(d, versions, await loadBrand()) +
+        (c.warnings?.length ? notice('warn', `<b>Looks familiar:</b> ${c.warnings.map((w) => esc(w)).join('; ')}. Revise if it is too close.`) : '') +
+        (TEXT_HEAVY.has(d.template) && d.status === 'pending' ? `<p class="hint" style="margin:4px 0 12px">Mostly text on the image. Fine for organic posts; if you ever boost this one, Meta tends to limit reach on text-heavy images.</p>` : '') +
+        actions(d, versions, brand) +
+        utilities(d) +
+        textEditor(d, c, brand) +
         section('Captions', 'What goes with the image on each channel. Hashtags are appended for Instagram and LinkedIn; Google Business gets none and a Learn more button instead.', `<div class="grid">${caption('instagram', 'portrait image')}${caption('facebook', 'square image')}${caption('linkedin', 'square image')}${caption('googlebusiness', 'square · no hashtags')}</div>`) +
         (await cropEditor(d, c)) +
         section('Under the hood', '', `<details><summary>Slot values and crop</summary><pre class="muted">${esc(JSON.stringify({ slots: c.slots, crop: c.crop }, null, 2))}</pre></details>

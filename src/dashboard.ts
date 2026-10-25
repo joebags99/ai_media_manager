@@ -19,6 +19,7 @@ import { badge, empty, esc, jobView, layout, notice, pageHead, section } from '.
 import { registerDraftRoutes } from './dashboard/drafts.js';
 import { registerBufferRoutes } from './dashboard/buffer.js';
 import { registerReviewRoutes } from './dashboard/reviews.js';
+import { registerLibraryRoutes } from './dashboard/library.js';
 
 let iconSvg = '';
 async function loadIcon(): Promise<string> {
@@ -77,6 +78,7 @@ export function createApp(): express.Express {
   registerDraftRoutes(app, page, wrap);
   registerBufferRoutes(app, page, wrap);
   registerReviewRoutes(app, page, wrap);
+  registerLibraryRoutes(app, page, wrap);
 
   // ---- Templates: fixture previews ------------------------------------------------
   app.get(

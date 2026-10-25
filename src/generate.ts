@@ -8,11 +8,11 @@
 import path from 'node:path';
 import { askJson, imageBlock, type ContentBlock, type JsonCall, type JsonResult, type MessageParam } from './claude.js';
 import { readManifest, siteDir, type Manifest } from './capture.js';
-import { insertDraft, type Draft } from './db.js';
+import { getDraft, insertDraft, recentDraftSummaries, updateDraft, type Draft } from './db.js';
 import type { PlanDay } from './plan.js';
 import { loadBrand, type Brand } from './render.js';
 import { loadSite, type Site } from './sites.js';
-import { validateContent, HEADLINE_SLOTS, type DraftContent, type ShotDims } from './validate.js';
+import { validateContent, keyLine, similarity, HEADLINE_SLOTS, type DraftContent, type ShotDims } from './validate.js';
 import { listReviews, type Review } from './reviews.js';
 
 export type Ask = <T>(call: JsonCall) => Promise<JsonResult<T>>;
@@ -247,13 +247,63 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
     messages.push({ role: 'assistant', content: JSON.stringify(r.data) });
     if (errors.length === 0) {
       log(`${day.slot}: valid on attempt ${attempt} ($${r.costUsd.toFixed(4)})`);
-      return { content: { ...r.data, theme: day.theme ?? null }, context: messages, calls, costUsd: calls.reduce((a, c) => a + c.costUsd, 0), site };
+      const warnings = repeatWarnings(template, r.data.slots);
+      for (const w of warnings) log(`${day.slot}: note: ${w}`);
+      const altText = `${brand.name} ad: ${keyLine(template, r.data.slots)}`.slice(0, 200);
+      return { content: { ...r.data, theme: day.theme ?? null, altText, warnings }, context: messages, calls, costUsd: calls.reduce((a, c) => a + c.costUsd, 0), site };
     }
     log(`${day.slot}: attempt ${attempt} failed validation: ${errors.join('; ')}`);
     if (attempt === 2) throw new Error(`Draft failed validation twice: ${errors.join('; ')}`);
     messages.push({ role: 'user', content: `Fix these problems and return the full JSON again:\n- ${errors.join('\n- ')}` });
   }
   throw new Error('unreachable');
+}
+
+/** Non-blocking notes when the new post reads like a recent one. */
+export function repeatWarnings(template: string, slots: Record<string, string>, recent = recentDraftSummaries(40)): string[] {
+  const line = keyLine(template, slots);
+  const out: string[] = [];
+  for (const r of recent) {
+    if (!r.headline) continue;
+    const sim = similarity(line, r.headline);
+    if (sim >= 0.6) out.push(`reads like the ${r.template} post from ${r.weekOf} ${r.slot} ("${r.headline}")`);
+  }
+  return out.slice(0, 3);
+}
+
+const CAPTION_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['captions', 'hashtags'],
+  properties: {
+    captions: { type: 'object', additionalProperties: false, required: ['instagram', 'facebook', 'linkedin', 'googlebusiness'], properties: { instagram: { type: 'string' }, facebook: { type: 'string' }, linkedin: { type: 'string' }, googlebusiness: { type: 'string' } } },
+    hashtags: { type: 'object', additionalProperties: false, required: ['instagram', 'facebook', 'linkedin'], properties: { instagram: { type: 'array', items: { type: 'string' } }, facebook: { type: 'array', items: { type: 'string' } }, linkedin: { type: 'array', items: { type: 'string' } } } },
+  },
+};
+
+/** Rewrite only the captions and hashtags of an existing draft; the image copy stays. */
+export async function regenerateCaptions(id: string, note = '', opts: GenerateOptions = {}): Promise<Draft> {
+  const ask = opts.ask ?? (askJson as Ask);
+  const log = opts.log ?? (() => {});
+  const d = getDraft(id);
+  if (!d) throw new Error(`Unknown draft ${id}`);
+  const brand = await loadBrand();
+  const c = JSON.parse(d.contentJson) as DraftContent;
+  const ctx = JSON.parse(d.generationContext) as { plan?: PlanDay; calls?: unknown[] };
+  const system = buildSystemPrompt(brand, d.template);
+  const messages: MessageParam[] = [
+    {
+      role: 'user',
+      content: `Write new captions and hashtags for this existing ${d.template} post. The image text is fixed:\n${JSON.stringify(c.slots, null, 1)}\n${ctx.plan?.subject ? `Subject: ${ctx.plan.subject}\n` : ''}${note ? `Reviewer note: ${note}\n` : 'Make them different from the current ones in angle and wording.\n'}Current captions (do not reuse):\n${JSON.stringify(c.captions, null, 1)}\nReturn only captions and hashtags.`,
+    },
+  ];
+  const r = await ask<Pick<DraftContent, 'captions' | 'hashtags'>>({ system, messages, schema: CAPTION_SCHEMA, effort: 'low', maxTokens: 2048 });
+  const next: DraftContent = { ...c, captions: r.data.captions, hashtags: r.data.hashtags };
+  const errors = validateContent(brand, next, {}, d.template).filter((e) => /caption|hashtag/.test(e));
+  if (errors.length) throw new Error(`New captions failed validation: ${errors.join('; ')}`);
+  log(`captions rewritten ($${r.costUsd.toFixed(4)})`);
+  const calls = [...(ctx.calls ?? []), { kind: 'captions', request: r.request, response: r.response, costUsd: r.costUsd }];
+  return updateDraft(id, { contentJson: JSON.stringify(next), generationContext: JSON.stringify({ ...ctx, calls }), costUsd: d.costUsd + r.costUsd });
 }
 
 /** Generate and store a pending draft (no render yet). */

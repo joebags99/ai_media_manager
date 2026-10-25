@@ -88,6 +88,7 @@ export function captionFor(c: DraftContent, platform: Platform): string {
 }
 
 export function altTextFor(c: DraftContent, brand: Brand): string {
+  if (c.altText?.trim()) return c.altText.trim().slice(0, 200);
   const s = c.slots;
   const head = s['headline'] ?? s['claim'] ?? s['verdict'] ?? s['quote'] ?? '';
   return `${brand.name} ad: ${head}`.slice(0, 200);

@@ -18,6 +18,30 @@ export interface DraftContent {
   rationale: string;
   /** Seasonal theme applied at render time (set from the plan, not by Claude). */
   theme?: string | null;
+  /** Image alt text for Buffer; generated, editable on the draft page. */
+  altText?: string;
+  /** Non-blocking notes from generation (e.g. looks like a recent post). */
+  warnings?: string[];
+  /** Set when the reviewer edited slot text by hand. */
+  editedByHand?: boolean;
+}
+
+const stop = new Set(['a', 'an', 'the', 'to', 'of', 'in', 'for', 'and', 'or', 'your', 'our', 'is', 'it', 'on', 'with', 'that', 'this', 'we', 'you']);
+const words = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w && !stop.has(w)));
+
+/** 0..1 overlap of meaningful words between two short texts. */
+export function similarity(a: string, b: string): number {
+  const A = words(a), B = words(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const w of A) if (B.has(w)) inter++;
+  return inter / Math.min(A.size, B.size);
+}
+
+/** The line that identifies a draft for repeat checks. */
+export function keyLine(template: string, slots: Record<string, string>): string {
+  const slot = HEADLINE_SLOTS[template];
+  return (slot && slots[slot]) || slots['headline'] || slots['quote'] || slots['question'] || slots['greeting'] || slots['rightText'] || slots['line2'] || Object.values(slots)[0] || '';
 }
 
 /** Slots the 3-5 word headline rule applies to (spec change approved 2026-10-24). */

@@ -8,6 +8,7 @@ export function esc(s: unknown): string {
 const NAV: [string, string, string][] = [
   ['/', 'Drafts', 'Review, revise, approve, publish'],
   ['/plan', 'Plan', 'Pick templates and subjects for a week'],
+  ['/library', 'Library', 'Shelved drafts for last-minute swaps'],
   ['/sites', 'Sites', 'Client and own sites to screenshot'],
   ['/reviews', 'Reviews', 'Client reviews the quote template draws from'],
   ['/templates', 'Templates', 'The four fixed ad layouts'],

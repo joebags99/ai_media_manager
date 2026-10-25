@@ -8,7 +8,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { DASHBOARD_PORT, FIXTURES_DIR, RENDERS_DIR, SCREENSHOTS_DIR, TEST_MODE } from './config.js';
 import { captureSite, readManifest, type Manifest } from './capture.js';
-import { listSites } from './sites.js';
+import { listSites, loadSite, saveSite, type Site } from './sites.js';
 import { renderDraft, type RenderInput } from './render.js';
 import { getJob, recentJobs, startJob } from './jobs.js';
 import { esc, jobView, layout } from './dashboard/html.js';
@@ -110,11 +110,101 @@ export function createApp(): express.Express {
       res.send(
         page(
           'Sites',
-          `<h1>Sites</h1><p class="muted">Recipes live in <code>sites/&lt;slug&gt;.json</code>. Capture takes desktop (1440) and mobile (390) shots of each section.</p>
+          `<h1>Sites</h1>
+          <div class="row"><a class="btn" href="/sites/new">Add a site</a><span class="muted">Recipes are saved to <code>sites/&lt;slug&gt;.json</code>. Capture takes desktop (1440) and mobile (390) shots of each section.</span></div>
           <table><tr><th>Site</th><th>Naming</th><th>Last capture</th><th></th></tr>${rows.join('')}</table>`,
           '/sites',
         ),
       );
+    }),
+  );
+
+  // ---- Sites: add / edit ------------------------------------------------------------
+  const siteForm = (site: Partial<Site>, error?: string) => {
+    const r = site.recipe ?? { sections: [] };
+    const sections = [...r.sections, ...Array.from({ length: Math.max(0, 4 - r.sections.length) }, () => ({ name: '', selector: '' }))];
+    const field = (label: string, name: string, value: string, hint = '', type = 'text') =>
+      `<label style="display:block;margin:12px 0"><b>${label}</b><br><input type="${type}" name="${name}" value="${esc(value)}" style="width:100%;padding:8px;font:inherit">${hint ? `<span class="muted">${hint}</span>` : ''}</label>`;
+    return `<h1>${site.slug ? `Edit ${esc(site.name)}` : 'Add a site'}</h1>
+    ${error ? `<div class="warn">${esc(error)}</div>` : ''}
+    <form method="post" class="card" style="max-width:760px">
+      ${site.slug ? `<input type="hidden" name="slug" value="${esc(site.slug)}">` : ''}
+      ${field('Name', 'name', site.name ?? '', 'Shown in the dashboard; the file slug is derived from it.')}
+      ${field('URL', 'url', site.url ?? 'https://', '', 'url')}
+      ${field('Industry', 'industry', site.industry ?? '', 'One or two words, e.g. "tile installation". Claude uses it for context.')}
+      <label style="display:block;margin:12px 0"><input type="checkbox" name="permissionToName" ${site.permissionToName ? 'checked' : ''}> <b>Client has agreed to be named in posts</b><br><span class="muted">Unchecked: copy stays anonymous ("a local tile installer").</span></label>
+      <h2>Sections to capture</h2>
+      <p class="muted">Name + CSS selector. The first <em>visible</em> match is screenshotted at desktop and mobile. The top of the page is always captured too.</p>
+      <table>${sections
+        .map(
+          (sec, i) => `<tr><td style="width:30%"><input name="sectionName" value="${esc(sec.name)}" placeholder="hero" style="width:100%;padding:6px;font:inherit"></td>
+          <td><input name="sectionSelector" value="${esc(sec.selector)}" placeholder="main section:first-of-type" style="width:100%;padding:6px;font:inherit"></td></tr>`,
+        )
+        .join('')}</table>
+      <h2>Advanced</h2>
+      ${field('Dismiss selectors', 'dismiss', (r.dismiss ?? []).join(', '), 'Comma-separated. Clicked if visible (cookie banners, popups).')}
+      ${field('Wait for selectors', 'waitFor', (r.waitFor ?? []).join(', '), 'Comma-separated. Capture waits until these exist.')}
+      ${field('Settle time (ms)', 'settleMs', String(r.settleMs ?? 800), 'Pause after load for animations.', 'number')}
+      <div class="row" style="margin-top:18px"><button>Save</button><a class="btn secondary" href="${site.slug ? `/sites/${site.slug}` : '/sites'}">Cancel</a></div>
+    </form>`;
+  };
+
+  const siteFromForm = (b: Record<string, unknown>): Omit<Site, 'slug'> & { slug?: string } => {
+    const list = (v: unknown): string[] => (Array.isArray(v) ? v : [v]).map((x) => String(x ?? ''));
+    const names = list(b['sectionName']);
+    const selectors = list(b['sectionSelector']);
+    const csv = (v: unknown) => String(v ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    return {
+      slug: typeof b['slug'] === 'string' ? b['slug'] : undefined,
+      name: String(b['name'] ?? ''),
+      url: String(b['url'] ?? ''),
+      industry: String(b['industry'] ?? ''),
+      permissionToName: b['permissionToName'] === 'on',
+      recipe: {
+        dismiss: csv(b['dismiss']),
+        waitFor: csv(b['waitFor']),
+        settleMs: Number(b['settleMs'] ?? 800) || 800,
+        sections: names.map((name, i) => ({ name: name.trim(), selector: (selectors[i] ?? '').trim() })),
+      },
+    };
+  };
+
+  app.get('/sites/new', (_req, res) => {
+    res.send(page('Add a site', siteForm({}), '/sites'));
+  });
+
+  app.post(
+    '/sites/new',
+    wrap(async (req, res) => {
+      const input = siteFromForm(req.body as Record<string, unknown>);
+      try {
+        const site = await saveSite(input);
+        res.redirect(`/sites/${site.slug}`);
+      } catch (err) {
+        res.status(400).send(page('Add a site', siteForm(input, (err as Error).message), '/sites'));
+      }
+    }),
+  );
+
+  app.get(
+    '/sites/:slug/edit',
+    wrap(async (req, res) => {
+      const site = await loadSite(String(req.params['slug']));
+      res.send(page(`Edit ${site.name}`, siteForm(site), '/sites'));
+    }),
+  );
+
+  app.post(
+    '/sites/:slug/edit',
+    wrap(async (req, res) => {
+      const slug = String(req.params['slug']);
+      const input = { ...siteFromForm(req.body as Record<string, unknown>), slug };
+      try {
+        await saveSite(input);
+        res.redirect(`/sites/${slug}`);
+      } catch (err) {
+        res.status(400).send(page('Edit site', siteForm({ ...input, slug }, (err as Error).message), '/sites'));
+      }
     }),
   );
 
@@ -137,7 +227,7 @@ export function createApp(): express.Express {
         page(
           slug,
           `<h1>${esc(m?.name ?? slug)}</h1>
-          <div class="row"><form method="post" action="/sites/${esc(slug)}/capture"><button>Capture now</button></form><a class="btn" href="/sites" style="background:#fff;color:var(--ink);border:1px solid var(--ash)">Back</a></div>
+          <div class="row"><form method="post" action="/sites/${esc(slug)}/capture"><button>Capture now</button></form><a class="btn secondary" href="/sites/${esc(slug)}/edit">Edit recipe</a><a class="btn secondary" href="/sites">Back</a></div>
           <div style="margin-top:18px">${body}</div>`,
           '/sites',
         ),

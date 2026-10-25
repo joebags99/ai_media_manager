@@ -31,7 +31,7 @@ export function layout(title: string, body: string, opts: { testMode: boolean; a
   .card img { width:100%; height:auto; display:block; border-radius:4px; background:#ddd; }
   .muted { color:var(--ash); font-size:13px; }
   button, .btn { font:inherit; background:var(--ink); color:#fff; border:0; padding:8px 14px; border-radius:6px; cursor:pointer; text-decoration:none; display:inline-block; }
-  button.secondary { background:#fff; color:var(--ink); border:1px solid var(--ash); }
+  button.secondary, .btn.secondary { background:#fff; color:var(--ink); border:1px solid var(--ash); }
   button.danger { background:#B4332B; }
   form.inline { display:inline; }
   pre.log { background:var(--ink); color:var(--bone); padding:14px; border-radius:8px; font-size:12px; max-height:420px; overflow:auto; white-space:pre-wrap; }

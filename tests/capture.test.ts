@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { captureSite, isCaptureFresh, siteDir } from '../src/capture.js';
 import { loadSite } from '../src/sites.js';
+import { ROOT } from '../src/config.js';
 
 describe('capture', () => {
   it('rejects a slug with no recipe', async () => {
@@ -30,4 +31,26 @@ describe('capture resilience', () => {
     expect(hero?.height).toBe(300);
     expect(m.warnings.some((w) => w.includes('"missing"'))).toBe(true);
   }, 60_000);
+});
+
+describe('saveSite', () => {
+  it('writes a recipe file and rejects bad input', async () => {
+    const { saveSite, loadSite, slugify } = await import('../src/sites.js');
+    const { rm } = await import('node:fs/promises');
+    expect(slugify('Valley Tile & Stone!')).toBe('valley-tile-stone');
+    const site = await saveSite({
+      name: 'Test Save Site',
+      url: 'https://example.test/',
+      industry: 'testing',
+      permissionToName: false,
+      recipe: { dismiss: [' .cookie '], sections: [{ name: 'hero', selector: 'main' }, { name: '', selector: '' }] },
+    });
+    expect(site.slug).toBe('test-save-site');
+    const back = await loadSite('test-save-site');
+    expect(back.recipe.sections).toEqual([{ name: 'hero', selector: 'main' }]);
+    expect(back.recipe.dismiss).toEqual(['.cookie']);
+    await rm(path.join(ROOT, 'sites', 'test-save-site.json'));
+    await expect(saveSite({ name: 'x', url: 'nope', industry: '', permissionToName: false, recipe: { sections: [{ name: 'a', selector: 'b' }] } })).rejects.toThrow(/valid URL/);
+    await expect(saveSite({ name: 'x', url: 'https://a.b/', industry: '', permissionToName: false, recipe: { sections: [] } })).rejects.toThrow(/at least one section/);
+  });
 });

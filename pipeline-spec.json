@@ -22,7 +22,6 @@
 
   "inputs": {
     "brand": "brand/brand.json",
-    "brandVoice": "brand/brand.md",
     "exampleAds": "brand/examples/*.png",
     "sites": "sites/*.json",
     "calendar": "data/calendar.json"
@@ -73,7 +72,7 @@
       "capture": {
         "file": "src/capture.ts",
         "does": "Load a site recipe, dismiss banners, wait for selectors, capture desktop (1440px) and mobile (390px) PNGs for each named section.",
-        "input": "sites/<slug>.json",
+        "input": "sites/<slug>.json (created and edited from the dashboard Sites page)",
         "output": "data/screenshots/<slug>/<section>-<viewport>.png + manifest.json"
       },
       "generate": {
@@ -186,7 +185,7 @@
   },
 
   "claudeContract": {
-    "systemPrompt": "brand/brand.md + brand.json (colors, fonts, voice, hashtags, platforms) + template slot schema + the calendar slot's subject",
+    "systemPrompt": "brand.json (name, tagline, colors, fonts, voice rules, proof points, CTAs, hashtags, platforms) + template slot schema + the calendar slot's subject",
     "userContent": "screenshots as image inputs (max 6) + manifest describing each + any prior feedback",
     "responseSchema": {
       "template": "list|stat|quote|screenshot",

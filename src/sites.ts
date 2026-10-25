@@ -1,5 +1,5 @@
 // Site recipes: sites/<slug>.json describes how to capture one client site.
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT, SITES_DIR } from './config.js';
 
@@ -45,4 +45,47 @@ export async function loadSite(slug: string): Promise<Site> {
 export async function listSites(): Promise<Site[]> {
   const files = (await readdir(SITES_DIR)).filter((f) => f.endsWith('.json')).sort();
   return Promise.all(files.map((f) => loadSite(f.replace(/\.json$/, ''))));
+}
+
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+}
+
+/** Validate and write sites/<slug>.json. Returns the saved site. */
+export async function saveSite(input: Omit<Site, 'slug'> & { slug?: string }): Promise<Site> {
+  const slug = input.slug?.trim() || slugify(input.name);
+  if (!/^[a-z0-9-]+$/.test(slug)) throw new Error(`Bad site slug "${slug}"`);
+  if (!input.name?.trim()) throw new Error('Site needs a name');
+  let url: URL;
+  try {
+    url = new URL(input.url);
+  } catch {
+    throw new Error(`"${input.url}" is not a valid URL`);
+  }
+  if (!['http:', 'https:', 'file:'].includes(url.protocol)) throw new Error('URL must be http(s)');
+  const sections = (input.recipe?.sections ?? []).filter((s) => s.name?.trim() && s.selector?.trim());
+  if (sections.length === 0) throw new Error('Add at least one section (name + CSS selector)');
+  for (const s of sections) {
+    if (!/^[a-z0-9-]+$/.test(s.name)) throw new Error(`Section name "${s.name}" must be lowercase letters, digits, dashes`);
+  }
+  const site: Site = {
+    slug,
+    name: input.name.trim(),
+    url: input.url.trim(),
+    industry: (input.industry ?? '').trim(),
+    permissionToName: Boolean(input.permissionToName),
+    recipe: {
+      dismiss: (input.recipe.dismiss ?? []).map((s) => s.trim()).filter(Boolean),
+      waitFor: (input.recipe.waitFor ?? []).map((s) => s.trim()).filter(Boolean),
+      settleMs: input.recipe.settleMs ?? 800,
+      sections,
+    },
+  };
+  const { slug: _slug, ...body } = site;
+  await writeFile(path.join(SITES_DIR, `${slug}.json`), JSON.stringify(body, null, 2) + '\n');
+  return site;
 }

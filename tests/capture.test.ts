@@ -57,7 +57,7 @@ describe('saveSite', () => {
 
 describe('site kind', () => {
   it('defaults to client, and own sites always may be named', async () => {
-    const own = await loadSite('daedabyte');
+    const own = await loadSite('sample-own');
     expect(own.kind).toBe('own');
     expect(own.permissionToName).toBe(true);
     const client = await loadSite('sample-local');

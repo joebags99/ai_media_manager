@@ -227,7 +227,7 @@
 
   "environment": {
     "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN"],
-    "optional": ["TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
+    "optional": ["ANTHROPIC_WORKSPACE_ID (org-level keys only)", "TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
   },
 
   "guardrails": [

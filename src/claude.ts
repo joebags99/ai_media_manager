@@ -41,7 +41,24 @@ export interface JsonResult<T> {
 let client: Anthropic | undefined;
 function getClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set');
-  return (client ??= new Anthropic());
+  // Organization-level keys (not scoped to one workspace) must name the workspace on
+  // every request; workspace-scoped keys ignore the header.
+  const workspace = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+  return (client ??= new Anthropic(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {}));
+}
+
+/** Turns the SDK's raw error into one line the dashboard can show, with a fix hint where known. */
+function explain(err: unknown): Error {
+  if (err instanceof Anthropic.APIError) {
+    const msg = (err.error as { error?: { message?: string } } | undefined)?.error?.message ?? err.message;
+    if (/anthropic-workspace-id/.test(msg)) {
+      return new Error(
+        `Claude ${err.status}: this API key is organization-level, so set ANTHROPIC_WORKSPACE_ID in .env to the workspace ID (Console -> Settings -> Workspaces), or create a key inside a workspace.`,
+      );
+    }
+    return new Error(`Claude ${err.status}: ${msg}`);
+  }
+  return err instanceof Error ? err : new Error(String(err));
 }
 
 export function hasApiKey(): boolean {
@@ -86,7 +103,12 @@ export async function askJson<T>(call: JsonCall): Promise<JsonResult<T>> {
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
   };
-  const response = await getClient().beta.messages.create(params);
+  let response: Anthropic.Beta.BetaMessage;
+  try {
+    response = await getClient().beta.messages.create(params);
+  } catch (err) {
+    throw explain(err);
+  }
   if (response.stop_reason === 'refusal') {
     throw new Error(`Claude declined the request${response.stop_details?.explanation ? `: ${response.stop_details.explanation}` : ''}`);
   }

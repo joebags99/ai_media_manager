@@ -26,6 +26,20 @@ const wrap = (fn: (req: Request, res: Response) => Promise<void>) => (req: Reque
 export function createApp(): express.Express {
   const app = express();
   app.use(express.urlencoded({ extended: false }));
+  // Buffer fetches post images from PUBLIC_BASE_URL/renders/<file>; the index exists so
+  // the tunnel can be checked from a browser.
+  app.get(
+    '/renders/',
+    wrap(async (_req, res) => {
+      let files: string[] = [];
+      try {
+        files = (await readdir(RENDERS_DIR)).filter((f) => f.endsWith('.png')).sort();
+      } catch {
+        // nothing rendered yet
+      }
+      res.send(page('Renders', `<h1>Renders</h1><p class="muted">${files.length} file(s). Buffer downloads post images from here.</p><ul>${files.map((f) => `<li><a href="/renders/${esc(f)}">${esc(f)}</a></li>`).join('')}</ul>`, ''));
+    }),
+  );
   app.use('/renders', express.static(RENDERS_DIR));
   app.use('/screenshots', express.static(SCREENSHOTS_DIR));
 

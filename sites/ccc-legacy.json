@@ -1,0 +1,32 @@
+{
+  "name": "CCC Legacy",
+  "url": "https://ccclegacy.org/",
+  "industry": "Historical Non-profit",
+  "kind": "client",
+  "permissionToName": true,
+  "recipe": {
+    "dismiss": [],
+    "waitFor": [
+      "#main-content"
+    ],
+    "settleMs": 800,
+    "sections": [
+      {
+        "name": "hero",
+        "selector": "#main-content"
+      },
+      {
+        "name": "services",
+        "selector": "section.programs-section"
+      },
+      {
+        "name": "work",
+        "selector": "#wolf-gap"
+      },
+      {
+        "name": "cta",
+        "selector": "section.membership-section"
+      }
+    ]
+  }
+}

@@ -10,6 +10,7 @@ import { generateDraft, type Ask } from './generate.js';
 import { planWeek, readPlan, writePlan, type Plan } from './plan.js';
 import { renderDraft } from './render.js';
 import type { DraftContent } from './validate.js';
+import { sendDigest } from './notify.js';
 
 export interface WeeklyOptions {
   weekOf?: string;
@@ -18,6 +19,8 @@ export interface WeeklyOptions {
   /** Regenerate slots that already have a draft this week. Default: skip them. */
   force?: boolean;
   costCeilingUsd?: number;
+  /** Send the digest after the run. Default true. */
+  digest?: boolean;
 }
 
 export async function renderDraftRow(draft: Draft): Promise<Draft> {
@@ -102,5 +105,12 @@ export async function runWeekly(opts: WeeklyOptions = {}): Promise<{ weekOf: str
     finishRun(run.id, { draftsCreated: created.length, errors: JSON.stringify(errors), costEstimateUsd: cost });
   }
   log(`done: ${created.length} draft(s), ${errors.length} error(s), $${cost.toFixed(3)}`);
+  if (opts.digest !== false) {
+    try {
+      await sendDigest(weekOf, { log });
+    } catch (err) {
+      log(`digest failed: ${(err as Error).message}`);
+    }
+  }
   return { weekOf, created, errors, costUsd: cost };
 }

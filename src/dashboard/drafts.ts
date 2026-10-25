@@ -14,6 +14,7 @@ import { validateContent } from '../validate.js';
 import { approve, reject } from '../workflow.js';
 import { TEST_MODE } from '../config.js';
 import { defaultPlatforms } from '../publish.js';
+import { buildDigest, sendDigest } from '../notify.js';
 import { reviseDraft } from '../revise.js';
 import { esc } from './html.js';
 import type { DraftContent } from '../validate.js';
@@ -193,6 +194,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
       const body = `<h1>Drafts</h1>
         <div class="row"><form method="post" action="/weekly"><button>Run weekly for ${esc(nextWeekOf())}</button></form>
         <a class="btn secondary" href="/plan">Plan the week</a>
+        ${weekOf ? `<a class="btn secondary" href="/digest/${weekOf}">Preview digest</a><form method="post" action="/digest/${weekOf}/send"><button class="secondary">Send digest</button></form>` : ''}
         <span class="muted">${hasApiKey() ? 'Claude writes the copy.' : 'No ANTHROPIC_API_KEY: the weekly run will fail at generation.'}</span></div>
         ${weekNav}
         ${drafts.length ? `<div class="grid" style="margin-top:18px">${cards}</div>` : '<p class="muted" style="margin-top:18px">No drafts yet. Plan the week, then run weekly.</p>'}
@@ -200,6 +202,19 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
       res.send(page('Drafts', body, '/'));
     }),
   );
+
+  app.get('/digest/:weekOf', (req, res) => {
+    res.send(buildDigest(String(req.params['weekOf'])).html);
+  });
+  app.post('/digest/:weekOf/send', (req, res) => {
+    const weekOf = String(req.params['weekOf']);
+    const job = startJob('digest', `Digest for ${weekOf}`, async (log) => {
+      const r = await sendDigest(weekOf, { log });
+      if (r.previewUrl) log(`open the preview: ${r.previewUrl}`);
+      return r;
+    });
+    res.redirect(`/jobs/${job.id}?next=/?week=${weekOf}`);
+  });
 
   app.post('/weekly', (req, res) => {
     const weekOf = typeof req.body?.['weekOf'] === 'string' && req.body['weekOf'] ? String(req.body['weekOf']) : nextWeekOf();

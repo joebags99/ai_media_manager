@@ -1,0 +1,32 @@
+{
+  "name": "Radical Movers",
+  "url": "https://radicalmovers.com/",
+  "industry": "Movers",
+  "kind": "client",
+  "permissionToName": true,
+  "recipe": {
+    "dismiss": [],
+    "waitFor": [
+      "#hero"
+    ],
+    "settleMs": 800,
+    "sections": [
+      {
+        "name": "hero",
+        "selector": "#hero"
+      },
+      {
+        "name": "services",
+        "selector": "#services"
+      },
+      {
+        "name": "testimonials",
+        "selector": "#testimonials"
+      },
+      {
+        "name": "about",
+        "selector": "#about"
+      }
+    ]
+  }
+}

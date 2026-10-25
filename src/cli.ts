@@ -3,6 +3,7 @@
 import { captureSite } from './capture.js';
 import { startDashboard } from './dashboard.js';
 import { runWeekly } from './weekly.js';
+import { reviseDraft } from './revise.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -11,7 +12,7 @@ const usage = `Usage:
   npm run capture -- <site>      capture one site recipe
   npm run weekly [-- YYYY-MM-DD] plan -> capture -> generate -> render
   npm run publish -- <draftId>   (M5) publish one approved draft
-  npm run revise -- <draftId> "feedback"   (M4)`;
+  npm run revise -- <draftId> "feedback"   new version from feedback`;
 
 switch (cmd) {
   case 'review':
@@ -30,6 +31,16 @@ switch (cmd) {
   case 'weekly': {
     const r = await runWeekly(args[0] ? { weekOf: args[0] } : {});
     if (r.errors.length) process.exitCode = 1;
+    break;
+  }
+  case 'revise': {
+    const [id, feedback] = args;
+    if (!id || !feedback) {
+      console.error(usage);
+      process.exit(1);
+    }
+    const next = await reviseDraft(id, feedback, { log: (l) => console.log(`[revise] ${l}`) });
+    console.log(`v${next.version}: ${next.renderSquare}`);
     break;
   }
   default:

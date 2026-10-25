@@ -18,7 +18,7 @@ export type Ask = <T>(call: JsonCall) => Promise<JsonResult<T>>;
 
 export const MAX_IMAGES = 6;
 
-const RESPONSE_SCHEMA = (template: string, slots: string[]) => ({
+export const responseSchema = (template: string, slots: string[]) => ({
   type: 'object',
   additionalProperties: false,
   required: ['template', 'slots', 'crop', 'captions', 'hashtags', 'rationale'],
@@ -212,7 +212,7 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
 
   const system = buildSystemPrompt(brand, template);
   const messages: MessageParam[] = [{ role: 'user', content }];
-  const schema = RESPONSE_SCHEMA(template, slots);
+  const schema = responseSchema(template, slots);
   const calls: Generated['calls'] = [];
 
   for (let attempt = 1; attempt <= 2; attempt++) {

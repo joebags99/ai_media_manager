@@ -11,6 +11,8 @@ import { readManifest, siteDir } from '../capture.js';
 
 import { loadBrand } from '../render.js';
 import { validateContent } from '../validate.js';
+import { approve, reject } from '../workflow.js';
+import { reviseDraft } from '../revise.js';
 import { esc } from './html.js';
 import type { DraftContent } from '../validate.js';
 
@@ -46,7 +48,7 @@ async function cropEditor(d: Draft, c: DraftContent): Promise<string> {
       ${n('x', x)} ${n('y', y)} ${n('w', w)} ${n('h', h)}
       <button>Save crop and re-render</button>
     </div>
-    <div id="cropPreview" style="position:relative;display:inline-block;margin-top:12px;max-width:100%">
+    <div id="cropPreview" style="position:relative;display:inline-block;margin-top:12px;max-width:100%;overflow:hidden">
       <img id="cropImg" src="" alt="" style="max-width:720px;display:block">
       <div id="cropBox" style="position:absolute;border:3px solid var(--terracotta);box-shadow:0 0 0 9999px rgba(21,19,26,.55);pointer-events:none"></div>
     </div>
@@ -81,16 +83,85 @@ async function cropEditor(d: Draft, c: DraftContent): Promise<string> {
   </script>`;
 }
 
+/** Approve / revise / reject for the latest pending version; status notes otherwise. */
+function actions(d: Draft, versions: Draft[]): string {
+  const latest = versions.reduce((a, b) => (b.version > a.version ? b : a), d);
+  if (latest.id !== d.id) return `<div class="warn">This is v${d.version}; the current version is <a href="/drafts/${latest.id}">v${latest.version}</a>.</div>`;
+  if (d.status === 'pending') {
+    return `<h2>Review</h2>
+    <div class="row" style="align-items:flex-start">
+      <form method="post" action="/drafts/${d.id}/approve"><button style="background:#2e7d32">Approve</button></form>
+      <form method="post" action="/drafts/${d.id}/reject" onsubmit="return confirm('Reject this draft? A rejected slot is regenerated on the next weekly run.')"><input type="hidden" name="reason" value=""><button class="danger">Reject</button></form>
+    </div>
+    <form method="post" action="/drafts/${d.id}/revise" class="card" style="margin-top:12px;max-width:760px">
+      <b>Revise with feedback</b><br>
+      <textarea name="feedback" rows="3" required placeholder="e.g. Lead with the mobile view. Drop the word 'bespoke'. Make the Google caption shorter." style="width:100%;padding:8px;font:inherit;margin:8px 0"></textarea>
+      <button>Send to Claude and re-render</button>
+      <span class="muted">Replays the original conversation with your note as a follow-up turn. Creates v${d.version + 1}; this version stays viewable.</span>
+    </form>`;
+  }
+  if (d.status === 'revising') return `<div class="warn">A revision is in progress for this version.</div>`;
+  if (d.status === 'approved') return `<div class="warn" style="border-color:#2e7d32">Approved. Publishing to Buffer arrives in M5.</div>`;
+  if (d.status === 'rejected') return `<div class="warn">Rejected. The next weekly run will generate a fresh draft for this day.</div>`;
+  return '';
+}
+
 export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void {
+  const act = (fn: (id: string, body: Record<string, string>) => Draft) => (req: import('express').Request, res: import('express').Response) => {
+    const id = String(req.params['id']);
+    try {
+      fn(id, (req.body ?? {}) as Record<string, string>);
+      res.redirect(`/drafts/${id}`);
+    } catch (err) {
+      res.status(400).send(page('Draft', `<h1>Not done</h1><div class="warn">${esc((err as Error).message)}</div><a class="btn" href="/drafts/${id}">Back</a>`, '/'));
+    }
+  };
+  app.post('/drafts/:id/approve', act((id) => approve(id)));
+  app.post('/drafts/:id/reject', act((id, b) => reject(id, b['reason'])));
+  app.post('/drafts/:id/revise', (req, res) => {
+    const id = String(req.params['id']);
+    const feedback = String((req.body as Record<string, string>)['feedback'] ?? '').trim();
+    if (!feedback) {
+      res.redirect(`/drafts/${id}`);
+      return;
+    }
+    const d = getDraft(id);
+    if (!d) {
+      res.status(404).send('unknown draft');
+      return;
+    }
+    const job = startJob('revise', `Revise ${d.slot} ${d.weekOf} v${d.version}`, async (log) => {
+      const next = await reviseDraft(id, feedback, { log });
+      log(`created v${next.version}`);
+      return next.id;
+    });
+    res.redirect(`/jobs/${job.id}?next=/drafts/${id}/latest`);
+  });
+  app.get('/drafts/:id/latest', (req, res) => {
+    const d = getDraft(String(req.params['id']));
+    if (!d) {
+      res.status(404).send('unknown draft');
+      return;
+    }
+    const latest = listDrafts({ weekOf: d.weekOf }).filter((x) => x.slot === d.slot).reduce((a, b) => (b.version > a.version ? b : a), d);
+    res.redirect(`/drafts/${latest.id}`);
+  });
+
   // ---- Drafts list -----------------------------------------------------------------
   app.get(
     '/',
     wrap(async (req, res) => {
       const weeks = [...new Set(listDrafts().map((d) => d.weekOf))];
       const weekOf = typeof req.query['week'] === 'string' ? req.query['week'] : weeks[0];
-      const drafts = weekOf ? listDrafts({ weekOf, latestOnly: true }) : [];
+      const showAll = req.query['all'] === '1';
+      const drafts = weekOf ? listDrafts({ weekOf, latestOnly: !showAll }) : [];
       const runs = listRuns(3);
-      const weekNav = weeks.length ? `<p class="muted">Week: ${weeks.map((w) => (w === weekOf ? `<b>${w}</b>` : `<a href="/?week=${w}">${w}</a>`)).join(' · ')}</p>` : '';
+      const counts = weekOf ? listDrafts({ weekOf, latestOnly: true }).reduce<Record<string, number>>((a, d) => ((a[d.status] = (a[d.status] ?? 0) + 1), a), {}) : {};
+      const weekNav = weeks.length
+        ? `<p class="muted">Week: ${weeks.map((w) => (w === weekOf ? `<b>${w}</b>` : `<a href="/?week=${w}">${w}</a>`)).join(' · ')}
+           &nbsp;·&nbsp; ${Object.entries(counts).map(([k, v]) => `${badge(k)} ${v}`).join(' ')}
+           &nbsp;·&nbsp; ${showAll ? `<a href="/?week=${weekOf}">latest versions only</a>` : `<a href="/?week=${weekOf}&all=1">all versions</a>`}</p>`
+        : '';
       const cards = drafts
         .map((d) => {
           const c = JSON.parse(d.contentJson) as DraftContent;
@@ -149,7 +220,8 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         ${await cropEditor(d, c)}
         <h2>Captions</h2><div class="grid">${caption('instagram')}${caption('facebook')}${caption('linkedin')}${caption('googlebusiness')}</div>
         <h2>Slots</h2><pre class="muted">${esc(JSON.stringify({ slots: c.slots, crop: c.crop }, null, 2))}</pre>
-        <div class="row"><form method="post" action="/drafts/${d.id}/rerender"><button class="secondary">Re-render</button></form><a class="btn secondary" href="/?week=${d.weekOf}">Back</a></div>
+        ${actions(d, versions)}
+        <div class="row" style="margin-top:14px"><form method="post" action="/drafts/${d.id}/rerender"><button class="secondary">Re-render</button></form><a class="btn secondary" href="/?week=${d.weekOf}">Back</a></div>
         <details style="margin-top:18px"><summary class="muted">Claude conversation (${ctx.calls?.length ?? 0} call(s))</summary><pre class="muted" style="max-height:500px;overflow:auto">${esc(JSON.stringify(JSON.parse(d.generationContext), null, 2))}</pre></details>`;
       res.send(page('Draft', body, '/'));
     }),

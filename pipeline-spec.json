@@ -24,7 +24,7 @@
     "brand": "brand/brand.json",
     "exampleAds": "brand/examples/*.png",
     "sites": "sites/*.json",
-    "calendar": "data/calendar.json (written by the plan step; edited in the dashboard, not by hand)"
+    "calendar": "data/calendar/<weekOf>.json, one per week (written by the plan step; edited in the dashboard, not by hand)"
   },
 
   "externalServices": {
@@ -78,7 +78,7 @@
       "plan": {
         "file": "src/plan.ts",
         "does": "Ask Claude for the week: one template + subject (+ optional site) per weekday, given brand.json, the sites (kind, captured sections) and recent drafts. Rules: vary templates, quote only with a captured testimonials section, screenshot only with a captured site. Reviewer edits the plan in the dashboard before generation.",
-        "output": "data/calendar.json"
+        "output": "data/calendar/<weekOf>.json"
       },
       "generate": {
         "file": "src/generate.ts",
@@ -177,7 +177,7 @@
       "any -> error": "unhandled failure; message stored"
     },
     "weeklyRun": [
-      "Plan next week with Claude unless data/calendar.json already covers it: five slots, each with template, subject and optional site.",
+      "Plan the week with Claude unless data/calendar/<weekOf>.json exists: five slots, each with template, subject and optional site.",
       "Capture screenshots for any site referenced this week (skip if cached under 7 days).",
       "Generate one draft per slot.",
       "Render both sizes per draft.",

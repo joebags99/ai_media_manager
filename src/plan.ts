@@ -1,6 +1,6 @@
 // plan.ts: Claude recommends the week: one template + subject (+ optional site) per
 // weekday. Saved to data/calendar.json and editable in the dashboard before generation.
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { askJson, hasApiKey } from './claude.js';
 import { DATA_DIR } from './config.js';
@@ -9,7 +9,11 @@ import { listSites, type Site } from './sites.js';
 import { recentDraftSummaries, SLOTS, type Slot } from './db.js';
 import { loadBrand, type Brand } from './render.js';
 
-export const CALENDAR_PATH = path.join(DATA_DIR, 'calendar.json');
+// One plan per week: data/calendar/<weekOf>.json (the older single data/calendar.json is
+// still read as a fallback for the week it names).
+export const CALENDAR_DIR = path.join(DATA_DIR, 'calendar');
+const LEGACY_PATH = path.join(DATA_DIR, 'calendar.json');
+export const planPath = (weekOf: string) => path.join(CALENDAR_DIR, `${weekOf}.json`);
 
 export interface PlanDay {
   slot: Slot;
@@ -55,16 +59,31 @@ export async function siteSummaries(): Promise<SiteSummary[]> {
   );
 }
 
-export async function readPlan(): Promise<Plan | null> {
+export async function readPlan(weekOf: string): Promise<Plan | null> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekOf)) return null;
   try {
-    return JSON.parse(await readFile(CALENDAR_PATH, 'utf8')) as Plan;
+    return JSON.parse(await readFile(planPath(weekOf), 'utf8')) as Plan;
   } catch {
-    return null;
+    try {
+      const legacy = JSON.parse(await readFile(LEGACY_PATH, 'utf8')) as Plan;
+      return legacy.weekOf === weekOf ? legacy : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+export async function listPlannedWeeks(): Promise<string[]> {
+  try {
+    return (await readdir(CALENDAR_DIR)).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).map((f) => f.slice(0, 10)).sort().reverse();
+  } catch {
+    return [];
   }
 }
 
 export async function writePlan(plan: Plan): Promise<void> {
-  await writeFile(CALENDAR_PATH, JSON.stringify(plan, null, 2));
+  await mkdir(CALENDAR_DIR, { recursive: true });
+  await writeFile(planPath(plan.weekOf), JSON.stringify(plan, null, 2));
 }
 
 function defaultPlan(weekOf: string, brand: Brand, sites: SiteSummary[]): Plan {

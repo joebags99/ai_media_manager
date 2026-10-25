@@ -36,8 +36,8 @@ export async function renderDraftRow(draft: Draft): Promise<Draft> {
 }
 
 export async function ensurePlan(weekOf: string, log: (s: string) => void): Promise<Plan> {
-  const existing = await readPlan();
-  if (existing && existing.weekOf === weekOf) return existing;
+  const existing = await readPlan(weekOf);
+  if (existing) return existing;
   log(`planning week of ${weekOf}`);
   const plan = await planWeek(weekOf, log);
   await writePlan(plan);

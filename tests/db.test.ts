@@ -31,3 +31,13 @@ describe('db', () => {
     expect(nextWeekOf(new Date('2026-10-28T12:00:00Z'))).toBe('2026-11-02'); // Wednesday
   });
 });
+
+describe('mondayOf', () => {
+  it('snaps any date to its Monday', async () => {
+    const { mondayOf } = await import('../src/db.js');
+    expect(mondayOf('2026-11-05')).toBe('2026-11-02'); // Thursday
+    expect(mondayOf('2026-11-08')).toBe('2026-11-02'); // Sunday
+    expect(mondayOf('2026-11-02')).toBe('2026-11-02'); // Monday
+    expect(() => mondayOf('nope')).toThrow(/Bad date/);
+  });
+});

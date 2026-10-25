@@ -182,6 +182,15 @@ export function listRuns(limit = 10): Run[] {
   return openDb().prepare('SELECT * FROM runs ORDER BY startedAt DESC LIMIT ?').all(limit) as Run[];
 }
 
+/** The Monday of the week containing an ISO date (any weekday snaps back to its Monday). */
+export function mondayOf(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) throw new Error(`Bad date "${isoDate}"`);
+  const day = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() - (day === 0 ? 6 : day - 1));
+  return d.toISOString().slice(0, 10);
+}
+
 /** ISO date of the Monday on or after `from` (next week's Monday when from is a Monday already in progress). */
 export function nextWeekOf(from = new Date()): string {
   const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));

@@ -2,8 +2,8 @@
 // reject land here in M4.
 import type { Express } from 'express';
 import path from 'node:path';
-import { listDrafts, getDraft, listRuns, nextWeekOf, updateDraft, SLOTS, type Draft, type Slot } from '../db.js';
-import { planWeek, readPlan, writePlan, siteSummaries, type Plan, type PlanDay } from '../plan.js';
+import { listDrafts, getDraft, listRuns, nextWeekOf, mondayOf, updateDraft, SLOTS, type Draft, type Slot } from '../db.js';
+import { planWeek, readPlan, writePlan, listPlannedWeeks, siteSummaries, type Plan, type PlanDay } from '../plan.js';
 import { runWeekly, renderDraftRow } from '../weekly.js';
 import { startJob } from '../jobs.js';
 import { hasApiKey } from '../claude.js';
@@ -192,7 +192,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         })
         .join('');
       const body = `<h1>Drafts</h1>
-        <div class="row"><form method="post" action="/weekly"><button>Run weekly for ${esc(nextWeekOf())}</button></form>
+        <div class="row"><form method="post" action="/weekly" class="row"><input type="date" name="weekOf" value="${esc(nextWeekOf())}" style="padding:6px;font:inherit"><button>Run weekly</button></form>
         <a class="btn secondary" href="/plan">Plan the week</a>
         ${weekOf ? `<a class="btn secondary" href="/digest/${weekOf}">Preview digest</a><form method="post" action="/digest/${weekOf}/send"><button class="secondary">Send digest</button></form>` : ''}
         <span class="muted">${hasApiKey() ? 'Claude writes the copy.' : 'No ANTHROPIC_API_KEY: the weekly run will fail at generation.'}</span></div>
@@ -217,7 +217,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
   });
 
   app.post('/weekly', (req, res) => {
-    const weekOf = typeof req.body?.['weekOf'] === 'string' && req.body['weekOf'] ? String(req.body['weekOf']) : nextWeekOf();
+    const weekOf = mondayOf(typeof req.body?.['weekOf'] === 'string' && req.body['weekOf'] ? String(req.body['weekOf']) : nextWeekOf());
     const job = startJob('weekly', `Weekly run for ${weekOf}`, (log) => runWeekly({ weekOf, log }));
     res.redirect(`/jobs/${job.id}?next=/?week=${weekOf}`);
   });
@@ -309,20 +309,41 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
   // ---- Plan -------------------------------------------------------------------------
   app.get(
     '/plan',
-    wrap(async (_req, res) => {
-      const plan = await readPlan();
+    wrap(async (req, res) => {
+      const requested = typeof req.query['week'] === 'string' && req.query['week'] ? req.query['week'] : nextWeekOf();
+      let weekOf: string;
+      try {
+        weekOf = mondayOf(requested);
+      } catch {
+        weekOf = nextWeekOf();
+      }
+      const plan = await readPlan(weekOf);
       const sites = await siteSummaries();
-      const weekOf = plan?.weekOf ?? nextWeekOf();
+      const planned = await listPlannedWeeks();
+      const shift = (days: number) => {
+        const d = new Date(`${weekOf}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().slice(0, 10);
+      };
+      const drafted = listDrafts({ weekOf, latestOnly: true }).length;
       const row = (day: PlanDay) => `<tr><td><b>${DAY_NAMES[day.slot]}</b></td>
         <td><select name="template-${day.slot}">${TEMPLATES.map((t) => `<option ${t === day.template ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
         <td><select name="site-${day.slot}"><option value="">none</option>${sites.map((s) => `<option value="${esc(s.slug)}" ${s.slug === day.site ? 'selected' : ''}>${esc(s.name)}${s.kind === 'own' ? ' (ours)' : ''}${s.captured ? '' : ' (not captured)'}</option>`).join('')}</select></td>
         <td><input name="subject-${day.slot}" value="${esc(day.subject)}" style="width:100%;padding:6px;font:inherit"><br><span class="muted">${esc(day.reason)}</span></td></tr>`;
       const days = plan?.days ?? SLOTS.map((slot) => ({ slot, template: 'list' as const, subject: '', site: null, reason: '' }));
       const body = `<h1>Plan the week</h1>
-        <div class="row"><form method="post" action="/plan/suggest"><input type="hidden" name="weekOf" value="${esc(weekOf)}"><button>${plan ? 'Ask Claude again' : 'Ask Claude to plan'} ${esc(weekOf)}</button></form>
-        <span class="muted">${plan ? `Current plan: ${esc(plan.source)}, ${esc(plan.createdAt.slice(0, 16).replace('T', ' '))}` : 'No plan yet.'}${hasApiKey() ? '' : ' (no API key: a default rotation is used)'}</span></div>
+        <form method="get" action="/plan" class="row" id="weekPicker">
+          <a class="btn secondary" href="/plan?week=${shift(-7)}" title="previous week">&larr;</a>
+          <label><b>Week of</b> <input type="date" name="week" value="${esc(weekOf)}" style="padding:6px;font:inherit"></label>
+          <a class="btn secondary" href="/plan?week=${shift(7)}" title="next week">&rarr;</a>
+          <span class="muted">Pick any day; it snaps to that week's Monday.${drafted ? ` ${drafted} draft(s) exist for this week.` : ''}</span>
+          ${planned.length ? `<span class="muted">Planned: ${planned.slice(0, 8).map((w) => (w === weekOf ? `<b>${w}</b>` : `<a href="/plan?week=${w}">${w}</a>`)).join(' · ')}</span>` : ''}
+        </form>
+        <script>document.querySelector('#weekPicker input[type=date]').addEventListener('change', (e) => { if (e.target.value) location.href = '/plan?week=' + e.target.value; });</script>
+        <div class="row" style="margin-top:14px"><form method="post" action="/plan/suggest"><input type="hidden" name="weekOf" value="${esc(weekOf)}"><button>${plan ? 'Ask Claude again for' : 'Ask Claude to plan'} ${esc(weekOf)}</button></form>
+        <span class="muted">${plan ? `Current plan: ${esc(plan.source)}, ${esc(plan.createdAt.slice(0, 16).replace('T', ' '))}` : 'No plan for this week yet.'}${hasApiKey() ? '' : ' (no API key: a default rotation is used)'}</span></div>
         <form method="post" action="/plan" style="margin-top:18px">
-          <label><b>Week of (Monday)</b> <input name="weekOf" value="${esc(weekOf)}" pattern="\\d{4}-\\d{2}-\\d{2}" style="padding:6px;font:inherit"></label>
+          <input type="hidden" name="weekOf" value="${esc(weekOf)}">
           <table style="margin-top:10px"><tr><th>Day</th><th>Template</th><th>Site</th><th>Subject</th></tr>${days.map(row).join('')}</table>
           <p class="muted">quote needs a site with a captured testimonials section; screenshot needs a captured site.</p>
           <div class="row"><button>Save plan</button><button name="then" value="run" class="secondary">Save and run weekly</button></div>
@@ -332,21 +353,21 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
   );
 
   app.post('/plan/suggest', (req, res) => {
-    const weekOf = String(req.body?.['weekOf'] || nextWeekOf());
+    const weekOf = mondayOf(String(req.body?.['weekOf'] || nextWeekOf()));
     const job = startJob('plan', `Plan ${weekOf}`, async (log) => {
       const plan = await planWeek(weekOf, log);
       await writePlan(plan);
       log(`saved: ${plan.days.map((d) => `${d.slot}=${d.template}${d.site ? `(${d.site})` : ''}`).join(' ')}`);
     });
-    res.redirect(`/jobs/${job.id}?next=/plan`);
+    res.redirect(`/jobs/${job.id}?next=/plan?week=${weekOf}`);
   });
 
   app.post(
     '/plan',
     wrap(async (req, res) => {
       const b = req.body as Record<string, string>;
-      const weekOf = b['weekOf'] ?? nextWeekOf();
-      const prev = await readPlan();
+      const weekOf = mondayOf(b['weekOf'] || nextWeekOf());
+      const prev = await readPlan(weekOf);
       const days: PlanDay[] = SLOTS.map((slot) => {
         const old = prev?.days.find((d) => d.slot === slot);
         return {
@@ -357,14 +378,14 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
           reason: old && old.template === b[`template-${slot}`] && old.subject === (b[`subject-${slot}`] ?? '').trim() ? old.reason : 'edited by reviewer',
         };
       });
-      const plan: Plan = { weekOf, createdAt: new Date().toISOString(), source: 'edited', days, claude: prev?.weekOf === weekOf ? prev.claude ?? null : null };
+      const plan: Plan = { weekOf, createdAt: new Date().toISOString(), source: 'edited', days, claude: prev?.claude ?? null };
       await writePlan(plan);
       if (b['then'] === 'run') {
         const job = startJob('weekly', `Weekly run for ${weekOf}`, (log) => runWeekly({ weekOf, log }));
         res.redirect(`/jobs/${job.id}?next=/?week=${weekOf}`);
         return;
       }
-      res.redirect('/plan');
+      res.redirect(`/plan?week=${weekOf}`);
     }),
   );
 }

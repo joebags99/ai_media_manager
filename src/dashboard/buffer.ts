@@ -5,7 +5,7 @@ import { TEST_MODE } from '../config.js';
 import { getDraft } from '../db.js';
 import { startJob } from '../jobs.js';
 import { deleteBufferPosts, publishDraft, specBuffer, PLATFORMS, type Platform } from '../publish.js';
-import { esc } from './html.js';
+import { esc, notice, pageHead, section } from './html.js';
 
 type Page = (title: string, body: string, active: string) => string;
 type Wrap = (fn: (req: Request, res: Response) => Promise<void>) => RequestHandler;
@@ -18,7 +18,7 @@ export function registerBufferRoutes(app: Express, page: Page, wrap: Wrap): void
       const base = process.env.PUBLIC_BASE_URL?.trim() || '';
       const token = Boolean(process.env.BUFFER_ACCESS_TOKEN?.trim());
       let status = '';
-      if (!token) status = '<div class="warn">BUFFER_ACCESS_TOKEN is not set.</div>';
+      if (!token) status = notice('bad', '<b>BUFFER_ACCESS_TOKEN</b> is not set in .env. Create one at publish.buffer.com/settings/api.');
       else {
         try {
           const cfg = bufferConfig();
@@ -29,20 +29,29 @@ export function registerBufferRoutes(app: Express, page: Page, wrap: Wrap): void
           const rows = Object.entries(spec.channels)
             .map(([platform, id]) => {
               const ch = byId.get(id);
-              return `<tr><td>${esc(platform)}</td><td class="muted">${esc(id)}</td><td>${ch ? `${esc(ch.name)} <span class="muted">(${esc(ch.service)}${ch.isDisconnected ? ', DISCONNECTED' : ''})</span>` : '<span class="status-error">not found in this organization</span>'}</td></tr>`;
+              return `<tr><td>${esc(platform)}</td><td>${ch ? `${esc(ch.name)} <span class="muted">(${esc(ch.service)}${ch.isDisconnected ? ', <span class="status-error">disconnected</span>' : ''})</span>` : '<span class="status-error">not found in this organization</span>'}</td><td class="muted">${esc(id)}</td></tr>`;
             })
             .join('');
-          status = `<div class="card"><b>Connected</b> as ${esc(acct.email)} · timezone ${esc(acct.timezone ?? '?')} · organization ${org ? esc(org.name) : `<span class="status-error">${esc(spec.organizationId)} not found</span>`}
-            <table style="margin-top:10px"><tr><th>Platform</th><th>Channel id (spec)</th><th>Buffer channel</th></tr>${rows}</table></div>`;
+          status =
+            notice('ok', `<b>Connected</b> as ${esc(acct.email)} · timezone ${esc(acct.timezone ?? '?')} · organization ${org ? esc(org.name) : `<span class="status-error">${esc(spec.organizationId)} not found</span>`}`) +
+            `<table><tr><th>Platform</th><th>Buffer channel</th><th>Channel id (from the spec)</th></tr>${rows}</table>`;
         } catch (err) {
-          status = `<div class="warn"><b>Connection failed:</b> ${esc((err as Error).message)}<br><span class="muted">Check BUFFER_ACCESS_TOKEN, and BUFFER_API_URL if Buffer's endpoint differs from the default.</span></div>`;
+          status = notice('bad', `<b>Connection failed:</b> ${esc((err as Error).message)}<br><span class="hint">Check BUFFER_ACCESS_TOKEN, and BUFFER_API_URL if Buffer’s endpoint differs from the default.</span>`);
         }
       }
-      const body = `<h1>Buffer</h1>
-        <p class="muted">Mode: <b>${TEST_MODE ? 'TEST (posts scheduled 60 days out, delete button shown)' : 'LIVE'}</b> · endpoint ${esc(process.env.BUFFER_API_URL?.trim() || 'https://api.buffer.com')}</p>
-        ${status}
-        <h2>Image hosting</h2>
-        ${base ? `<p>Renders are published from <code>${esc(base)}/renders/…</code>. Buffer must be able to download from there. <a href="${esc(base)}/renders/" target="_blank">Open</a></p>` : '<div class="warn">PUBLIC_BASE_URL is not set. Buffer downloads images by URL, so run a tunnel to this dashboard (e.g. <code>cloudflared tunnel --url http://localhost:3000</code>) and put its https URL in .env as PUBLIC_BASE_URL.</div>'}`;
+      const body =
+        pageHead(
+          'Buffer',
+          `Approved drafts are scheduled here, one post per channel. ${TEST_MODE ? '<b>Test mode</b>: posts land 60 days out and each draft has a delete button.' : '<b>Live</b>: posts are scheduled for real.'} Endpoint <code>${esc(process.env.BUFFER_API_URL?.trim() || 'https://api.buffer.com')}</code>.`,
+        ) +
+        section('Connection', 'The token in .env, the organization, and the four channel ids from pipeline-spec.json.', status) +
+        section(
+          'Image hosting',
+          'Buffer has no upload endpoint; it downloads each post image from a public URL. The dashboard serves renders at PUBLIC_BASE_URL/renders/…, so that URL must reach this machine from the internet.',
+          base
+            ? notice('ok', `Renders are published from <code>${esc(base)}/renders/…</code>. <a href="${esc(base)}/renders/" target="_blank">Open the public listing</a> to confirm it loads from outside.`)
+            : notice('warn', '<b>PUBLIC_BASE_URL</b> is not set. Locally: run <code>cloudflared tunnel --url http://localhost:3000</code>, copy the https URL it prints into .env as PUBLIC_BASE_URL, and restart the dashboard. The URL changes each time the tunnel restarts.'),
+        );
       res.send(page('Buffer', body, '/buffer'));
     }),
   );

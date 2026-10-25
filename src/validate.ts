@@ -1,6 +1,7 @@
 // validate.ts: the claudeContract.validation rules from pipeline-spec.json, applied to a
 // generated draft before it is stored. Pure functions; no I/O.
 import type { Brand } from './render.js';
+import { reviewForQuote, type Review } from './reviews.js';
 
 export interface Crop {
   screenshot: string | null;
@@ -20,7 +21,7 @@ export interface DraftContent {
 }
 
 /** Slots the 3-5 word headline rule applies to (spec change approved 2026-10-24). */
-export const HEADLINE_SLOTS: Record<string, string> = { screenshot: 'headline', headline: 'headline', stat: 'claim', list: 'verdict', tip: 'tip' };
+export const HEADLINE_SLOTS: Record<string, string> = { screenshot: 'headline', headline: 'headline', mobile: 'headline', stat: 'claim', list: 'verdict', tip: 'tip', detail: 'caption' };
 
 export function wordCount(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
@@ -30,7 +31,7 @@ export interface ShotDims {
   [file: string]: { width: number; height: number };
 }
 
-export function validateContent(brand: Brand, c: DraftContent, shots: ShotDims, expectedTemplate?: string): string[] {
+export function validateContent(brand: Brand, c: DraftContent, shots: ShotDims, expectedTemplate?: string, reviews: Review[] = []): string[] {
   const errors: string[] = [];
   const def = brand.templates[c.template];
   if (!def) {
@@ -78,7 +79,14 @@ export function validateContent(brand: Brand, c: DraftContent, shots: ShotDims, 
   if (/#\w/.test(gb)) errors.push('googlebusiness caption contains a hashtag');
   if (/link in (the )?bio/i.test(gb)) errors.push('googlebusiness caption says "link in bio"');
 
-  const needsShot = c.template === 'screenshot' || c.crop?.treatment === 'dimmed';
+  if (c.template === 'mobile' && c.crop?.screenshot && !/-mobile\.png$/.test(c.crop.screenshot)) errors.push('mobile template needs a -mobile.png screenshot');
+  if (c.template === 'backdrop' && c.crop?.treatment !== 'dimmed') errors.push('backdrop template needs crop.treatment "dimmed"');
+  if (c.template === 'quote' && reviews.length && c.slots?.['quote']) {
+    const src = reviewForQuote(c.slots['quote'], reviews);
+    if (!src) errors.push('quote is not a verbatim passage of any review on file');
+    else if (c.slots['name'] && src.name.toLowerCase().split(/\s+/)[0] !== c.slots['name'].toLowerCase().split(/\s+/)[0]) errors.push(`quote is from ${src.name}, not "${c.slots['name']}"`);
+  }
+  const needsShot = ['screenshot', 'detail', 'backdrop', 'mobile'].includes(c.template) || c.crop?.treatment === 'dimmed';
   if (c.crop?.screenshot) {
     const dims = shots[c.crop.screenshot];
     if (!dims) errors.push(`crop.screenshot "${c.crop.screenshot}" is not one of the provided screenshots`);

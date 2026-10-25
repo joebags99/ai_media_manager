@@ -32,8 +32,8 @@ reachable from the internet (`cloudflared tunnel --url http://localhost:3000` lo
 ## Layout
 
 ```
-brand/        brand.json, icon.svg, fonts, example ads
-templates/    eight ad layouts (headline, question, tip, stat, list, quote, screenshot, holiday), driven by brand.json CSS variables
+brand/        brand.json, reviews.json, icon.svg, fonts, example ads
+templates/    twelve ad layouts (headline, question, tip, contrast, stat, list, quote, screenshot, detail, backdrop, mobile, holiday), driven by brand.json CSS variables
 fixtures/     hard-coded JSON used by the Templates page and tests
 sites/        one capture recipe per site (edited from the dashboard)
 src/          capture, inspect, plan, generate, validate, render, revise, workflow,

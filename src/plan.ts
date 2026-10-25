@@ -8,6 +8,7 @@ import { readManifest, type Manifest } from './capture.js';
 import { listSites, type Site } from './sites.js';
 import { recentDraftSummaries, slotDate, SLOTS, type Slot } from './db.js';
 import { holidayOn, seasonFor, type Holiday } from './holidays.js';
+import { listReviews } from './reviews.js';
 import { loadBrand, type Brand } from './render.js';
 
 // One plan per week: data/calendar/<weekOf>.json (the older single data/calendar.json is
@@ -16,8 +17,10 @@ export const CALENDAR_DIR = path.join(DATA_DIR, 'calendar');
 const LEGACY_PATH = path.join(DATA_DIR, 'calendar.json');
 export const planPath = (weekOf: string) => path.join(CALENDAR_DIR, `${weekOf}.json`);
 
-export type PlanTemplate = 'list' | 'stat' | 'quote' | 'screenshot' | 'headline' | 'question' | 'tip' | 'holiday' | 'none';
-export const PLAN_TEMPLATES: PlanTemplate[] = ['list', 'stat', 'quote', 'screenshot', 'headline', 'question', 'tip', 'holiday', 'none'];
+export type PlanTemplate = 'list' | 'stat' | 'quote' | 'screenshot' | 'headline' | 'question' | 'tip' | 'holiday' | 'detail' | 'backdrop' | 'mobile' | 'contrast' | 'none';
+export const PLAN_TEMPLATES: PlanTemplate[] = ['headline', 'question', 'tip', 'contrast', 'stat', 'list', 'quote', 'screenshot', 'detail', 'backdrop', 'mobile', 'holiday', 'none'];
+/** Templates that need a captured site. */
+export const SITE_TEMPLATES: PlanTemplate[] = ['screenshot', 'detail', 'backdrop', 'mobile'];
 
 export interface PlanDay {
   slot: Slot;
@@ -102,15 +105,15 @@ export async function writePlan(plan: Plan): Promise<void> {
   await writeFile(planPath(plan.weekOf), JSON.stringify(plan, null, 2));
 }
 
-function defaultPlan(weekOf: string, brand: Brand, sites: SiteSummary[]): Plan {
+function defaultPlan(weekOf: string, brand: Brand, sites: SiteSummary[], reviewCount = 0): Plan {
   const voice = brand['voice'] as { proofPoints: string[]; ctas: string[] };
   const client = sites.find((s) => s.kind === 'client' && s.captured) ?? null;
   const own = sites.find((s) => s.kind === 'own' && s.captured) ?? null;
-  const withQuote = sites.find((s) => s.kind === 'own' && s.captured && s.sections.includes('testimonials')) ?? null;
+  const withQuote = reviewCount > 0 ? { slug: null as string | null } : (sites.find((s) => s.kind === 'own' && s.captured && s.sections.includes('testimonials')) ?? null);
   const base: Record<Slot, Omit<PlanDay, 'slot' | 'date' | 'holiday' | 'theme'>> = {
     mon: { template: 'headline', subject: 'Websites built to last, not to be rebuilt every two years', site: null, reason: 'default rotation' },
     tue: { template: 'stat', subject: voice.proofPoints[2] ?? 'A proof point', site: null, reason: 'default rotation' },
-    wed: { template: client || own ? 'screenshot' : 'tip', subject: client ? `Recent work: ${client.name}` : own ? 'How we build' : 'One small fix that gets more calls', site: (client ?? own)?.slug ?? null, reason: 'default rotation' },
+    wed: { template: client || own ? (['screenshot', 'mobile', 'backdrop', 'detail'] as const)[Number(weekOf.slice(8, 10)) % 4]! : 'tip', subject: client ? `Recent work: ${client.name}` : own ? 'How we build' : 'One small fix that gets more calls', site: (client ?? own)?.slug ?? null, reason: 'default rotation' },
     thu: withQuote ? { template: 'quote', subject: 'A client testimonial about us', site: withQuote.slug, reason: 'our testimonials section is captured' } : { template: 'question', subject: 'Does your site load before the customer gives up', site: null, reason: 'no testimonials captured' },
     fri: { template: 'list', subject: 'Four things a dated website costs a small business', site: null, reason: 'default rotation' },
     sat: { template: 'none', subject: '', site: null, reason: 'weekend' },
@@ -154,9 +157,10 @@ const SCHEMA = {
 export async function planWeek(weekOf: string, log: (s: string) => void = () => {}): Promise<Plan> {
   const brand = await loadBrand();
   const sites = await siteSummaries();
+  const reviews = await listReviews();
   if (!hasApiKey()) {
     log('ANTHROPIC_API_KEY not set; using the default rotation');
-    return defaultPlan(weekOf, brand, sites);
+    return defaultPlan(weekOf, brand, sites, reviews.length);
   }
   const recent = recentDraftSummaries(15);
   const voice = brand['voice'] as Record<string, unknown>;
@@ -171,9 +175,14 @@ Templates (text-only unless noted):
 - tip: a labelled practical tip ("Tip 03") with one line of detail. Useful, generous, no pitch.
 - stat: one big number, a 3-5 word claim, a kicker. Use the studio's real proof points only: ${JSON.stringify(voice['proofPoints'])}.
 - list: four punchy one-word lines plus a short verdict. Strong but loud: AT MOST ONCE PER WEEK.
-- quote: a testimonial ABOUT THE STUDIO from one of its own clients. ONLY allowed with a site of kind "own" whose captured sections include "testimonials" (that is where the studio's client reviews live). Never use a client site's reviews: those are the client's customers talking about the client, not about us.
-- screenshot: a headline with one accent word over a crop of a real site. Needs a captured site.
+- contrast: a labelled "most websites" line in grey against a labelled "ours" line in the accent. Good for positioning.
+- quote: a review ABOUT THE STUDIO from one of its clients. Source: the studio's review list (${reviews.length} on file, from Google Business and the website)${reviews.length ? '' : ' - EMPTY, so quote is not available this week'}; site may be null. Never use a client site's own customer reviews.
+- screenshot: a headline with one accent word over a framed crop of a real site. Needs a captured site.
+- detail: a tight crop of one part of a site we built (a booking button, a menu, a gallery) with a label and a 3-5 word caption. Needs a captured site.
+- backdrop: a site we built as a dimmed full-bleed background with three big lines over it. Needs a captured site.
+- mobile: a phone mockup of the mobile capture beside a headline. Needs a captured site.
 - holiday: a simple greeting card ("Happy Thanksgiving.") with one warm line in our voice. ONLY on a holiday day; it is the right choice for every holiday worth posting on.
+Use the four site templates (screenshot, detail, backdrop, mobile) interchangeably for work posts; do not repeat the same one two weeks running if the recent posts show it.
 
 Every post is about what the studio does: its work (client sites as examples of our craft), its results (proof points), its clients' words about it. Never make a post about what a client's customers think of the client.
 Holidays this week:
@@ -183,7 +192,7 @@ Rules: vary templates across the week (no template three times, no two in a row)
   const user = `Week of ${weekOf}.\n\nSites:\n${JSON.stringify(sites, null, 1)}\n\nRecent posts (avoid repeating):\n${JSON.stringify(recent, null, 1)}`;
   const r = await askJson<{ days: PlanDay[] }>({ system, messages: [{ role: 'user', content: user }], schema: SCHEMA, effort: 'medium', maxTokens: 2048 });
   const bySlot = new Map(r.data.days.map((d) => [d.slot, d]));
-  const fallback = defaultPlan(weekOf, brand, sites);
+  const fallback = defaultPlan(weekOf, brand, sites, reviews.length);
   const known = new Set(sites.map((s) => s.slug));
   const days: PlanDay[] = SLOTS.map((slot) => {
     const fb = fallback.days.find((x) => x.slot === slot)!;
@@ -196,8 +205,8 @@ Rules: vary templates across the week (no template three times, no two in a row)
     if (ctx.holiday && !ctx.holiday.post) template = 'none';
     if (ctx.holiday?.post) template = 'holiday';
     if (template === 'holiday' && !ctx.holiday) template = 'headline';
-    if (template === 'quote' && !(sum && sum.kind === 'own' && sum.sections.includes('testimonials'))) template = 'stat';
-    if (template === 'screenshot' && !(sum && sum.captured)) template = 'list';
+    if (template === 'quote' && reviews.length === 0 && !(sum && sum.kind === 'own' && sum.sections.includes('testimonials'))) template = 'headline';
+    if (SITE_TEMPLATES.includes(template) && !(sum && sum.captured)) template = 'headline';
     return { slot, date: ctx.date, template, subject: template === 'none' ? '' : d.subject, site: template === 'none' ? null : site, reason: d.reason, holiday: ctx.holiday?.name ?? null, theme: ctx.theme };
   });
   log(`Claude planned: ${days.filter((d) => d.template !== 'none').map((d) => `${d.slot}=${d.template}`).join(' ')} ($${r.costUsd.toFixed(4)})`);

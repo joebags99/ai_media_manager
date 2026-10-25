@@ -18,6 +18,7 @@ import { getJob, recentJobs, startJob } from './jobs.js';
 import { badge, empty, esc, jobView, layout, notice, pageHead, section } from './dashboard/html.js';
 import { registerDraftRoutes } from './dashboard/drafts.js';
 import { registerBufferRoutes } from './dashboard/buffer.js';
+import { registerReviewRoutes } from './dashboard/reviews.js';
 
 let iconSvg = '';
 async function loadIcon(): Promise<string> {
@@ -34,6 +35,10 @@ const page = (title: string, body: string, active: string) => layout(title, body
 const wrap = (fn: (req: Request, res: Response) => Promise<void>) => (req: Request, res: Response, next: NextFunction) => fn(req, res).catch(next);
 
 const TEMPLATE_HELP: Record<string, string> = {
+  contrast: 'A labelled "most websites" line in grey against a labelled "ours" line.',
+  detail: 'A tight crop of one part of a site we built, large, with a label and caption.',
+  backdrop: 'A site we built as a dimmed full-bleed background with three big lines over it.',
+  mobile: 'A phone mockup of the mobile capture beside a headline.',
   headline: 'One big statement with an orange word and a supporting line. The workhorse.',
   question: 'A question the reader recognises, then a short bold answer, on bone.',
   tip: 'A labelled practical tip with one line of detail. Useful, no pitch.',
@@ -71,6 +76,7 @@ export function createApp(): express.Express {
 
   registerDraftRoutes(app, page, wrap);
   registerBufferRoutes(app, page, wrap);
+  registerReviewRoutes(app, page, wrap);
 
   // ---- Templates: fixture previews ------------------------------------------------
   app.get(

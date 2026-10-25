@@ -13,6 +13,7 @@ import type { PlanDay } from './plan.js';
 import { loadBrand, type Brand } from './render.js';
 import { loadSite, type Site } from './sites.js';
 import { validateContent, HEADLINE_SLOTS, type DraftContent, type ShotDims } from './validate.js';
+import { listReviews, type Review } from './reviews.js';
 
 export type Ask = <T>(call: JsonCall) => Promise<JsonResult<T>>;
 
@@ -57,13 +58,17 @@ export const responseSchema = (template: string, slots: string[]) => ({
 });
 
 const TEMPLATE_NOTES: Record<string, string> = {
+  contrast: 'leftLabel: 2-3 words naming the usual way ("Most websites", "The old site"). leftText: 3-6 words, the problem, plain. rightLabel: "Ours" or "With us". rightText: 3-6 words, the result, confident. No exaggeration.',
+  detail: 'label: a short eyebrow naming what we are looking at, e.g. "Detail \u00b7 the booking flow" (name the client only if allowed). caption: 3-5 words on why this detail matters. crop: a TIGHT region on one element (a button, a form, a menu, a card), framed; region should be roughly 2:1 to 3:1 wide.',
+  backdrop: 'line1, line2, line3: three short lines (2-4 words each) that read as one sentence top to bottom, e.g. "Three weeks." / "One cohesive site." / "Built for growth." crop: the hero or a full-page shot, treatment "dimmed", region may be null for the whole image.',
+  mobile: 'headline: 3-5 words with accentWord (copied exactly) in orange. support: one sentence under 14 words about mobile. crop.screenshot MUST be a "-mobile.png" file; region null shows the top of the phone screen.',
   headline: 'headline: 3-5 words, one of which is accentWord (copied exactly from the headline) and set in orange. support: one plain sentence under 14 words that earns the headline.',
   question: 'question: a question the reader would ask themselves, under 12 words, ending in "?". answer: 2-4 words, confident, ending in a period.',
   tip: 'label: "Tip" plus a two-digit number, e.g. "Tip 03" (vary the number). tip: 3-5 words of practical advice. detail: one sentence under 18 words explaining why. Useful, no pitch.',
   holiday: 'This is a greeting card, nothing more. greeting: 2-3 words like "Happy Thanksgiving." or "Merry Christmas." line: one warm sentence under 16 words with a little Daedabyte flavor (small businesses, the valley, building things that last). No offer, no CTA, no proof points. Captions: one or two friendly sentences, same spirit; hashtags only the brand ones.',
   list: 'Four one-word lines (line1-line4), each a single word with a period, e.g. "Slow." Then a verdict of 3-5 words that resolves them. The four words are set in brand accent colors, the verdict in white.',
   stat: 'number: a short figure like "40%" or "24h" taken from the proof points. claim: 3-5 words in white. kicker: a short CTA or qualifier in orange caps. Set crop.treatment "dimmed" with a screenshot to put a dim site behind the number, or leave crop.screenshot null for a plain ink background.',
-  quote: 'The testimonial is a client of OURS talking about OUR work, copied verbatim from the testimonials screenshot of our own site (under 30 words; trim to whole sentences, never invent or paraphrase). name: the reviewer\'s name exactly as shown (first name + initial is fine). business: their business as shown, or their industry if not shown.',
+  quote: 'The quote is a client of OURS talking about OUR work. Pick ONE review from the REVIEWS list in the user message and copy a passage of it VERBATIM (under 30 words, whole sentences, no paraphrase, no stitching). name: the reviewer\'s name as given. business: their business as given. If no reviews are listed, use the testimonials screenshot the same way.',
   screenshot: 'headline: 3-5 words, one of which is accentWord (copied exactly from the headline) and set in orange. crop: pick the screenshot and a region [x, y, w, h] showing the most convincing part of the site; "framed" puts it in a browser frame, "dimmed" uses it as a dim full-bleed background.',
 };
 
@@ -167,6 +172,7 @@ export function pickShots(m: Manifest, template: string): Manifest['shots'] {
   const sections = m.shots.filter((s) => s.section !== 'page');
   const pages = m.shots.filter((s) => s.section === 'page');
   const ordered = [
+    ...(template === 'mobile' ? [...pages.filter((s) => s.viewport === 'mobile'), ...sections.filter((s) => s.viewport === 'mobile')] : []),
     ...sections.filter((s) => s.viewport === 'desktop' && (template !== 'quote' || s.section === 'testimonials')),
     ...sections.filter((s) => s.viewport === 'desktop'),
     ...pages.filter((s) => s.viewport === 'desktop'),
@@ -193,10 +199,17 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
     manifest = await readManifest(day.site);
     if (!manifest) throw new Error(`Site "${day.site}" has no capture yet`);
   }
+  let reviews: Review[] = [];
   if (template === 'quote') {
-    if (!site || site.kind !== 'own') throw new Error('quote template needs one of our own sites (testimonials about us), not a client site');
-    if (!manifest!.shots.some((s) => s.section === 'testimonials')) throw new Error(`quote template needs a captured "testimonials" section on ${site.slug}`);
+    reviews = await listReviews();
+    if (reviews.length === 0) {
+      if (!site || site.kind !== 'own') throw new Error('quote template needs reviews on the Reviews page, or one of our own sites with a captured testimonials section');
+      if (!manifest!.shots.some((s) => s.section === 'testimonials')) throw new Error(`quote template needs reviews on the Reviews page, or a captured "testimonials" section on ${site.slug}`);
+    } else if (site && site.kind !== 'own') {
+      throw new Error('quote template: leave the site empty or use our own site; client sites are never the source of quotes');
+    }
   }
+  if (['screenshot', 'detail', 'backdrop', 'mobile'].includes(template) && !site) throw new Error(`${template} template needs a captured site`);
   const shots = manifest ? pickShots(manifest, template) : [];
   const dims: ShotDims = Object.fromEntries(shots.map((s) => [s.file, { width: s.width, height: s.height }]));
 
@@ -210,6 +223,10 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
     for (const s of shots) lines.push(`- ${s.file}: ${s.section}, ${s.viewport}, ${s.width}x${s.height}`);
   } else {
     lines.push('No site for this post; crop.screenshot must be null.');
+  }
+  if (reviews.length) {
+    lines.push('', 'REVIEWS (quote one verbatim):');
+    for (const r of reviews) lines.push(`- ${r.name}${r.business ? `, ${r.business}` : ''} (${r.source}${r.date ? `, ${r.date}` : ''}): "${r.text}"`);
   }
   if (input.feedback) lines.push(`\nReviewer feedback on the previous version (address it directly):\n${input.feedback}`);
   const content: ContentBlock[] = [{ type: 'text', text: lines.join('\n') }];
@@ -226,7 +243,7 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
   for (let attempt = 1; attempt <= 2; attempt++) {
     const r = await ask<DraftContent>({ system, messages, schema, effort: 'medium', maxTokens: 4096 });
     calls.push({ request: r.request, response: r.response, costUsd: r.costUsd });
-    const errors = validateContent(brand, r.data, dims, template);
+    const errors = validateContent(brand, r.data, dims, template, reviews);
     messages.push({ role: 'assistant', content: JSON.stringify(r.data) });
     if (errors.length === 0) {
       log(`${day.slot}: valid on attempt ${attempt} ($${r.costUsd.toFixed(4)})`);

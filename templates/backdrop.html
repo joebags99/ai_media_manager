@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" data-template="backdrop">
+<head>
+<meta charset="utf-8">
+<title>backdrop</title>
+<!-- Backdrop ad: a site we built as a full-bleed dimmed background with three big lines over it (gold, white, orange) under a short purple rule. Slots: line1 line2 line3 crop (treatment dimmed). Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json. -->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body { font-family: var(--font-body); font-weight: var(--font-body-weight); -webkit-font-smoothing: antialiased; }
+  .ad { position: relative; width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; height: var(--icon); }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+  .display { font-family: var(--font-display); font-weight: var(--font-display-weight); letter-spacing: var(--font-display-tracking); }
+  .eyebrow { font-family: var(--font-eyebrow); font-weight: var(--font-eyebrow-weight); letter-spacing: var(--font-eyebrow-tracking); text-transform: var(--font-eyebrow-transform); font-size: 20px; color: var(--color-ash); }
+  .foot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 32px; }
+  .accent { color: var(--color-terracotta); }
+  body { background: var(--color-ink); color: var(--color-marble); }
+  .shot-bg { position: fixed; inset: 0; overflow: hidden; }
+  .shot-bg img { filter: saturate(.6) blur(1.5px); }
+  .shot-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(21,19,26,.72), rgba(21,19,26,.88)); }
+  .ad { align-items: center; text-align: center; }
+  .body { flex: 1; min-height: 0; width: 100%; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+  .stack { margin: auto 0; display: flex; flex-direction: column; align-items: center; }
+  .rule { width: 180px; height: 6px; background: var(--color-purple); margin-bottom: 44px; }
+  .line { font-size: 104px; line-height: 1.04; max-width: 11ch; text-shadow: 0 4px 24px rgba(0,0,0,.45); }
+  :root[data-format="portrait"] .line { font-size: 116px; }
+  .l1 { color: var(--color-gold); } .l2 { color: var(--color-marble); } .l3 { color: var(--color-terracotta); }
+  .foot { width: 100%; }
+  .foot .eyebrow { color: var(--color-lavender); }
+</style>
+</head>
+<body>
+  <div class="shot-bg" data-crop="cover"><img alt=""></div>
+  <main class="ad">
+    <header class="top" style="align-self:flex-start"><span data-icon></span></header>
+    <section class="body" data-fit-box>
+      <div class="stack">
+        <div class="rule"></div>
+        <p class="display line l1" data-slot="line1" data-fit></p>
+        <p class="display line l2" data-slot="line2" data-fit></p>
+        <p class="display line l3" data-slot="line3" data-fit></p>
+      </div>
+    </section>
+    <footer class="foot"><span class="eyebrow" data-brand="name"></span><span class="eyebrow" data-brand="siteHost"></span></footer>
+  </main>
+</body>
+</html>

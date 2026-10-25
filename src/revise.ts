@@ -8,6 +8,7 @@ import { loadBrand } from './render.js';
 import { readManifest } from './capture.js';
 import { validateContent, type DraftContent, type ShotDims } from './validate.js';
 import { transition } from './workflow.js';
+import { listReviews } from './reviews.js';
 import { renderDraftRow } from './weekly.js';
 
 interface StoredContext {
@@ -47,6 +48,7 @@ export async function reviseDraft(id: string, feedback: string, opts: ReviseOpti
       dims = Object.fromEntries((m?.shots ?? []).map((s) => [s.file, { width: s.width, height: s.height }]));
     }
 
+    const reviews = template === 'quote' ? await listReviews() : [];
     const messages = await hydrate(ctx.messages, prev.site);
     messages.push({ role: 'user', content: `Reviewer feedback on your last version (v${prev.version}). Apply it and return the full JSON again, keeping everything else that worked:\n${text}` });
     const calls = [...ctx.calls];
@@ -56,7 +58,7 @@ export async function reviseDraft(id: string, feedback: string, opts: ReviseOpti
       const r = await ask<DraftContent>({ system, messages, schema, effort: 'medium', maxTokens: 4096 });
       calls.push({ request: r.request, response: r.response, costUsd: r.costUsd });
       messages.push({ role: 'assistant', content: JSON.stringify(r.data) });
-      const errors = validateContent(brand, r.data, dims, template);
+      const errors = validateContent(brand, r.data, dims, template, reviews);
       if (errors.length === 0) {
         content = r.data;
         log(`v${prev.version + 1}: valid on attempt ${attempt} ($${r.costUsd.toFixed(4)})`);

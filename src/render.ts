@@ -18,7 +18,7 @@ const TEMPLATES_DIR = path.join(ROOT, 'templates');
 const FIXTURES_DIR = path.join(ROOT, 'fixtures');
 export const RENDERS_DIR = path.join(ROOT, 'data', 'renders');
 
-export type TemplateName = 'list' | 'stat' | 'quote' | 'screenshot' | 'headline' | 'question' | 'tip' | 'holiday';
+export type TemplateName = 'list' | 'stat' | 'quote' | 'screenshot' | 'headline' | 'question' | 'tip' | 'holiday' | 'detail' | 'backdrop' | 'mobile' | 'contrast';
 export type Format = 'square' | 'portrait';
 export type Region = [number, number, number, number];
 

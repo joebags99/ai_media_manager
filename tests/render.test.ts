@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ROOT, loadBrand, renderDraft, textSlots, type TemplateName } from '../src/render.js';
 
-const TEMPLATES = ['list', 'stat', 'quote', 'screenshot', 'headline', 'question', 'tip', 'holiday'] as TemplateName[];
+const TEMPLATES = ['list', 'stat', 'quote', 'screenshot', 'headline', 'question', 'tip', 'holiday', 'detail', 'backdrop', 'mobile', 'contrast'] as TemplateName[];
 
 function pngSize(buf: Buffer): [number, number] {
   return [buf.readUInt32BE(16), buf.readUInt32BE(20)];

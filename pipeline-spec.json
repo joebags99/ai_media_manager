@@ -154,6 +154,7 @@
       "name": "string",
       "url": "string",
       "industry": "string",
+      "kind": "own|client (own = Daedabyte's site: first-person copy, never presented as a client)",
       "permissionToName": "boolean",
       "recipe": "JSON: dismiss selectors, waitFor selectors, sections[{name, selector}]"
     }
@@ -234,6 +235,7 @@
     "No code path posts to Buffer from a draft that is not status=approved.",
     "TEST_MODE defaults to true until explicitly flipped.",
     "Client names appear in copy only when sites.<slug>.permissionToName is true.",
+    "Sites with kind=own are Daedabyte's own: copy speaks in the first person and never calls them a client or attaches client proof points to them.",
     "Every Claude request and response is stored on the draft for replay and audit.",
     "Cost per draft is logged; the weekly run aborts if projected cost exceeds COST_CEILING_USD (default 2.00)."
   ],

@@ -8,7 +8,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { DASHBOARD_PORT, FIXTURES_DIR, RENDERS_DIR, SCREENSHOTS_DIR, TEST_MODE } from './config.js';
 import { captureSite, readManifest, type Manifest } from './capture.js';
-import { listSites, loadSite, saveSite, slugify, type Site } from './sites.js';
+import { listSites, loadSite, saveSite, slugify, type Site, type SiteKind } from './sites.js';
 import { inspectSite, suggestRecipe } from './inspect.js';
 import { hasApiKey } from './claude.js';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -106,7 +106,7 @@ export function createApp(): express.Express {
         sites.map(async (s) => {
           const m = await readManifest(s.slug);
           return `<tr><td><a href="/sites/${s.slug}"><b>${esc(s.name)}</b></a><br><span class="muted">${esc(s.url)}</span></td>
-            <td>${s.permissionToName ? 'may name' : '<span class="muted">anonymous</span>'}</td>
+            <td>${s.kind === 'own' ? '<span class="badge" style="margin:0">OURS</span>' : s.permissionToName ? 'client · may name' : '<span class="muted">client · anonymous</span>'}</td>
             <td>${m ? `${m.shots.length} shots · ${esc(m.capturedAt.slice(0, 16).replace('T', ' '))}${m.warnings.length ? ` · <span class="status-error">${m.warnings.length} warning(s)</span>` : ''}` : '<span class="muted">never captured</span>'}</td>
             <td><form method="post" action="/sites/${s.slug}/capture"><button>Capture</button></form></td></tr>`;
         }),
@@ -116,7 +116,7 @@ export function createApp(): express.Express {
           'Sites',
           `<h1>Sites</h1>
           <div class="row"><a class="btn" href="/sites/new">Add a site</a><span class="muted">Recipes are saved to <code>sites/&lt;slug&gt;.json</code>. Capture takes desktop (1440) and mobile (390) shots of each section.</span></div>
-          <table><tr><th>Site</th><th>Naming</th><th>Last capture</th><th></th></tr>${rows.join('')}</table>`,
+          <table><tr><th>Site</th><th>Kind</th><th>Last capture</th><th></th></tr>${rows.join('')}</table>`,
           '/sites',
         ),
       );
@@ -136,7 +136,11 @@ export function createApp(): express.Express {
       ${field('Name', 'name', site.name ?? '', 'Shown in the dashboard; the file slug is derived from it.')}
       ${field('URL', 'url', site.url ?? 'https://', '', 'url')}
       ${field('Industry', 'industry', site.industry ?? '', 'One or two words, e.g. "tile installation". Claude uses it for context.')}
-      <label style="display:block;margin:12px 0"><input type="checkbox" name="permissionToName" ${site.permissionToName ? 'checked' : ''}> <b>Client has agreed to be named in posts</b><br><span class="muted">Unchecked: copy stays anonymous ("a local tile installer").</span></label>
+      <fieldset style="border:0;padding:0;margin:12px 0"><b>Whose site is this?</b><br>
+        <label><input type="radio" name="kind" value="client" ${site.kind !== 'own' ? 'checked' : ''}> A client's site</label> &nbsp;
+        <label><input type="radio" name="kind" value="own" ${site.kind === 'own' ? 'checked' : ''}> Ours (Daedabyte)</label>
+        <br><span class="muted">Our own sites are written about in the first person and never presented as a client or used for client proof points.</span></fieldset>
+      <label style="display:block;margin:12px 0"><input type="checkbox" name="permissionToName" ${site.permissionToName ? 'checked' : ''}> <b>Client has agreed to be named in posts</b><br><span class="muted">Unchecked: copy stays anonymous ("a local tile installer"). Ignored for our own sites.</span></label>
       <h2>Sections to capture</h2>
       <p class="muted">Name + CSS selector. The first <em>visible</em> match is screenshotted at desktop and mobile. The top of the page is always captured too.</p>
       <table>${sections
@@ -163,6 +167,7 @@ export function createApp(): express.Express {
       name: String(b['name'] ?? ''),
       url: String(b['url'] ?? ''),
       industry: String(b['industry'] ?? ''),
+      kind: (b['kind'] === 'own' ? 'own' : 'client') as SiteKind,
       permissionToName: b['permissionToName'] === 'on',
       recipe: {
         dismiss: csv(b['dismiss']),
@@ -173,13 +178,17 @@ export function createApp(): express.Express {
     };
   };
 
-  const quickForm = (v: { name?: string; url?: string; industry?: string; permissionToName?: boolean }, error?: string) => `<h1>Add a site</h1>
+  const quickForm = (v: { name?: string; url?: string; industry?: string; kind?: string; permissionToName?: boolean }, error?: string) => `<h1>Add a site</h1>
     ${error ? `<div class="warn">${esc(error)}</div>` : ''}
     <form method="post" class="card" style="max-width:640px">
       <label style="display:block;margin:12px 0"><b>Name</b><br><input name="name" value="${esc(v.name ?? '')}" required style="width:100%;padding:8px;font:inherit"></label>
       <label style="display:block;margin:12px 0"><b>URL</b><br><input type="url" name="url" value="${esc(v.url ?? 'https://')}" required style="width:100%;padding:8px;font:inherit"></label>
       <label style="display:block;margin:12px 0"><b>Industry</b><br><input name="industry" value="${esc(v.industry ?? '')}" placeholder="tile installation" style="width:100%;padding:8px;font:inherit"></label>
-      <label style="display:block;margin:12px 0"><input type="checkbox" name="permissionToName" ${v.permissionToName ? 'checked' : ''}> <b>Client has agreed to be named in posts</b></label>
+<fieldset style="border:0;padding:0;margin:12px 0"><b>Whose site is this?</b><br>
+        <label><input type="radio" name="kind" value="client" ${v.kind !== 'own' ? 'checked' : ''}> A client's site</label> &nbsp;
+        <label><input type="radio" name="kind" value="own" ${v.kind === 'own' ? 'checked' : ''}> Ours (Daedabyte)</label>
+        <br><span class="muted">Our own sites are written about in the first person and never presented as a client or used for client proof points.</span></fieldset>
+      <label style="display:block;margin:12px 0"><input type="checkbox" name="permissionToName" ${v.permissionToName ? 'checked' : ''}> <b>Client has agreed to be named in posts</b> <span class="muted">(ignored for our own sites)</span></label>
       <p class="muted">On save, the page is loaded once and its main sections are picked ${hasApiKey() ? 'by Claude' : 'by a heuristic (no ANTHROPIC_API_KEY set)'}. You can adjust the result afterwards with Edit recipe.</p>
       <div class="row"><button>Save and analyze</button><a class="btn secondary" href="/sites">Cancel</a><a class="muted" href="/sites/new/manual">Set up the recipe by hand instead</a></div>
     </form>`;
@@ -192,7 +201,7 @@ export function createApp(): express.Express {
     '/sites/new',
     wrap(async (req, res) => {
       const b = req.body as Record<string, unknown>;
-      const v = { name: String(b['name'] ?? '').trim(), url: String(b['url'] ?? '').trim(), industry: String(b['industry'] ?? '').trim(), permissionToName: b['permissionToName'] === 'on' };
+      const v = { name: String(b['name'] ?? '').trim(), url: String(b['url'] ?? '').trim(), industry: String(b['industry'] ?? '').trim(), kind: (b['kind'] === 'own' ? 'own' : 'client') as SiteKind, permissionToName: b['permissionToName'] === 'on' };
       const slug = slugify(v.name);
       if (!v.name || !slug) {
         res.status(400).send(page('Add a site', quickForm(v, 'Site needs a name'), '/sites'));
@@ -287,7 +296,7 @@ export function createApp(): express.Express {
       res.send(
         page(
           slug,
-          `<h1>${esc(site.name)}</h1>
+          `<h1>${esc(site.name)} ${site.kind === 'own' ? '<span class="badge">OURS</span>' : ''}</h1>
           <div class="row"><form method="post" action="/sites/${esc(slug)}/capture"><button>Capture now</button></form><a class="btn secondary" href="/sites/${esc(slug)}/edit">Edit recipe</a><a class="btn secondary" href="/sites">Back</a></div>
           <div style="margin-top:18px">${banner}${body}</div>`,
           '/sites',

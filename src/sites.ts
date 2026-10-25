@@ -18,11 +18,15 @@ export interface SiteRecipe {
   sections: SiteSection[];
 }
 
+export type SiteKind = 'own' | 'client';
+
 export interface Site {
   slug: string;
   name: string;
   url: string;
   industry: string;
+  /** own = Daedabyte's own site(s): first-person copy, never presented as a client. */
+  kind: SiteKind;
   permissionToName: boolean;
   recipe: SiteRecipe;
 }
@@ -35,7 +39,8 @@ export async function loadSite(slug: string): Promise<Site> {
   } catch {
     throw new Error(`No recipe at sites/${slug}.json`);
   }
-  const site = { slug, ...(JSON.parse(raw) as Omit<Site, 'slug'>) };
+  const site = { kind: 'client' as SiteKind, ...(JSON.parse(raw) as Omit<Site, 'slug' | 'kind'> & { kind?: SiteKind }), slug };
+  if (site.kind === 'own') site.permissionToName = true;
   // Local fixture sites use file:// URLs relative to the repo.
   site.url = site.url.replace('__ROOT__', ROOT);
   if (!site.url || !site.recipe?.sections?.length) throw new Error(`sites/${slug}.json needs url and recipe.sections`);
@@ -56,7 +61,7 @@ export function slugify(name: string): string {
 }
 
 /** Validate and write sites/<slug>.json. Returns the saved site. */
-export async function saveSite(input: Omit<Site, 'slug'> & { slug?: string }): Promise<Site> {
+export async function saveSite(input: Omit<Site, 'slug' | 'kind'> & { slug?: string; kind?: SiteKind }): Promise<Site> {
   const slug = input.slug?.trim() || slugify(input.name);
   if (!/^[a-z0-9-]+$/.test(slug)) throw new Error(`Bad site slug "${slug}"`);
   if (!input.name?.trim()) throw new Error('Site needs a name');
@@ -77,7 +82,8 @@ export async function saveSite(input: Omit<Site, 'slug'> & { slug?: string }): P
     name: input.name.trim(),
     url: input.url.trim(),
     industry: (input.industry ?? '').trim(),
-    permissionToName: Boolean(input.permissionToName),
+    kind: input.kind === 'own' ? 'own' : 'client',
+    permissionToName: input.kind === 'own' ? true : Boolean(input.permissionToName),
     recipe: {
       dismiss: (input.recipe.dismiss ?? []).map((s) => s.trim()).filter(Boolean),
       waitFor: (input.recipe.waitFor ?? []).map((s) => s.trim()).filter(Boolean),

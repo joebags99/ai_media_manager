@@ -54,3 +54,13 @@ describe('saveSite', () => {
     await expect(saveSite({ name: 'x', url: 'https://a.b/', industry: '', permissionToName: false, recipe: { sections: [] } })).rejects.toThrow(/at least one section/);
   });
 });
+
+describe('site kind', () => {
+  it('defaults to client, and own sites always may be named', async () => {
+    const own = await loadSite('daedabyte');
+    expect(own.kind).toBe('own');
+    expect(own.permissionToName).toBe(true);
+    const client = await loadSite('sample-local');
+    expect(client.kind).toBe('client');
+  });
+});

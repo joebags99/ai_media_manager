@@ -15,42 +15,172 @@
     "aegean": "#1D8A99",
     "gold": "#C3B86A"
   },
-  "accentOrder": ["terracotta", "gold", "aegean", "purple"],
+  "accentOrder": [
+    "terracotta",
+    "gold",
+    "aegean",
+    "purple"
+  ],
   "fonts": {
-    "display": { "family": "Inter Tight", "weight": 700, "tracking": "-0.035em" },
-    "body": { "family": "Hanken Grotesk", "weight": 400 },
-    "eyebrow": { "family": "Hanken Grotesk", "weight": 600, "tracking": "0.18em", "transform": "uppercase" }
+    "display": {
+      "family": "Inter Tight",
+      "weight": 700,
+      "tracking": "-0.035em"
+    },
+    "body": {
+      "family": "Hanken Grotesk",
+      "weight": 400
+    },
+    "eyebrow": {
+      "family": "Hanken Grotesk",
+      "weight": 600,
+      "tracking": "0.18em",
+      "transform": "uppercase"
+    }
   },
   "canvas": {
-    "square": [1080, 1080],
-    "portrait": [1080, 1350],
-    "linkedinLink": [1200, 627],
+    "square": [
+      1080,
+      1080
+    ],
+    "portrait": [
+      1080,
+      1350
+    ],
+    "linkedinLink": [
+      1200,
+      627
+    ],
     "paddingPct": 8,
     "rulePx": 4,
     "iconPct": 4
   },
   "templates": {
-    "list": { "slots": ["line1", "line2", "line3", "line4", "verdict"], "align": "left", "bg": "ink" },
-    "stat": { "slots": ["number", "claim", "kicker"], "align": "left", "bg": "ink|screenshotDim" },
-    "quote": { "slots": ["quote", "name", "business"], "align": "center", "bg": "photoWash|bone" },
-    "screenshot": { "slots": ["headline", "accentWord", "crop"], "align": "left", "bg": "ink" }
+    "list": {
+      "slots": [
+        "line1",
+        "line2",
+        "line3",
+        "line4",
+        "verdict"
+      ],
+      "align": "left",
+      "bg": "ink"
+    },
+    "stat": {
+      "slots": [
+        "number",
+        "claim",
+        "kicker"
+      ],
+      "align": "left",
+      "bg": "ink|screenshotDim"
+    },
+    "quote": {
+      "slots": [
+        "quote",
+        "name",
+        "business"
+      ],
+      "align": "center",
+      "bg": "photoWash|bone"
+    },
+    "screenshot": {
+      "slots": [
+        "headline",
+        "accentWord",
+        "crop"
+      ],
+      "align": "left",
+      "bg": "ink"
+    }
   },
   "voice": {
     "sentences": "short, declarative, end with a period",
-    "headlineWords": [3, 5],
-    "banned": ["unlock", "elevate", "seamless", "cutting-edge", "game-changing", "!", "🚀"],
-    "ctas": ["Start your project", "See the work", "Tell us what’s tangled"],
-    "proofPoints": ["50+ projects delivered", "15 years of experience", "40% average inquiry increase", "24-hour reply"]
+    "headlineWords": [
+      3,
+      5
+    ],
+    "banned": [
+      "unlock",
+      "elevate",
+      "seamless",
+      "cutting-edge",
+      "game-changing",
+      "!",
+      "🚀"
+    ],
+    "ctas": [
+      "Start your project",
+      "See the work",
+      "Tell us what’s tangled"
+    ],
+    "proofPoints": [
+      "50+ projects delivered",
+      "15 years of experience",
+      "40% average inquiry increase",
+      "24-hour reply"
+    ]
   },
   "platforms": {
-    "instagram": { "size": "portrait", "hashtags": [5, 8], "link": "bio" },
-    "facebook": { "size": "square", "hashtags": [0, 3], "link": "inline" },
-    "linkedin": { "size": "square", "hashtags": [3, 5], "link": "inline" },
-    "googlebusiness": { "size": "square", "hashtags": [0, 0], "link": "button" }
+    "instagram": {
+      "size": "portrait",
+      "hashtags": [
+        5,
+        8
+      ],
+      "link": "bio"
+    },
+    "facebook": {
+      "size": "square",
+      "hashtags": [
+        0,
+        3
+      ],
+      "link": "inline"
+    },
+    "linkedin": {
+      "size": "square",
+      "hashtags": [
+        3,
+        5
+      ],
+      "link": "inline"
+    },
+    "googlebusiness": {
+      "size": "square",
+      "hashtags": [
+        0,
+        0
+      ],
+      "link": "button",
+      "templates": [
+        "stat",
+        "list"
+      ],
+      "maxPerWeek": 2
+    }
   },
   "hashtags": {
-    "always": ["#Daedabyte", "#WebDesign", "#SmallBusiness"],
-    "region": ["#ShenandoahValley", "#VirginiaBusiness", "#MtJackson", "#HarrisonburgVA", "#WinchesterVA"],
-    "service": ["#WebDevelopment", "#CustomWebsite", "#WebsiteHosting", "#SEO", "#AIWorkflows", "#Ecommerce"]
+    "always": [
+      "#Daedabyte",
+      "#WebDesign",
+      "#SmallBusiness"
+    ],
+    "region": [
+      "#ShenandoahValley",
+      "#VirginiaBusiness",
+      "#MtJackson",
+      "#HarrisonburgVA",
+      "#WinchesterVA"
+    ],
+    "service": [
+      "#WebDevelopment",
+      "#CustomWebsite",
+      "#WebsiteHosting",
+      "#SEO",
+      "#AIWorkflows",
+      "#Ecommerce"
+    ]
   }
 }

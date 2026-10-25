@@ -15,7 +15,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { bufferConfig, createPost, deletePost, type BufferConfig } from './buffer.js';
 import { ROOT, TEST_MODE } from './config.js';
-import { getDraft, updateDraft, type Draft, type Slot } from './db.js';
+import { getDraft, listDrafts, updateDraft, type Draft, type Slot } from './db.js';
 import { loadBrand, type Brand } from './render.js';
 import type { DraftContent } from './validate.js';
 import { transition } from './workflow.js';
@@ -115,6 +115,40 @@ export function buildPostInput(draft: Draft, c: DraftContent, platform: Platform
   };
 }
 
+export interface PlatformRule {
+  size: string;
+  hashtags: [number, number];
+  link: string;
+  /** Templates this platform accepts; absent = all. */
+  templates?: string[];
+  /** Cap on posts per week for this platform; absent = no cap. */
+  maxPerWeek?: number;
+}
+
+export interface PlatformChoice {
+  platform: Platform;
+  /** Checked by default. */
+  on: boolean;
+  /** Why it is off by default, if it is. */
+  reason: string | null;
+}
+
+/** Which platforms a draft should go to by default, from brand.json platform rules. */
+export function defaultPlatforms(draft: Pick<Draft, 'id' | 'weekOf' | 'template'>, brand: Brand): PlatformChoice[] {
+  const rules = brand['platforms'] as Record<Platform, PlatformRule>;
+  return PLATFORMS.map((platform) => {
+    const rule = rules[platform];
+    if (rule.templates && !rule.templates.includes(draft.template)) {
+      return { platform, on: false, reason: `${platform} is limited to ${rule.templates.join('/')} posts in brand.json` };
+    }
+    if (rule.maxPerWeek !== undefined) {
+      const used = listDrafts({ weekOf: draft.weekOf, status: ['scheduled', 'posted'] }).filter((d) => d.id !== draft.id && d.bufferPostIds && platform in (JSON.parse(d.bufferPostIds) as Record<string, string>)).length;
+      if (used >= rule.maxPerWeek) return { platform, on: false, reason: `${platform} already has ${used} post(s) this week (max ${rule.maxPerWeek})` };
+    }
+    return { platform, on: true, reason: null };
+  });
+}
+
 export interface PublishOptions {
   cfg?: BufferConfig;
   log?: (s: string) => void;
@@ -154,9 +188,12 @@ export async function publishDraft(draftId: string, opts: PublishOptions = {}): 
   const dueAt = isoInZone(when, timeZone);
   log(`${testMode ? 'TEST MODE: ' : ''}scheduling for ${dueAt}`);
 
+  const platforms = opts.platforms ?? defaultPlatforms(draft, brand).filter((p) => p.on).map((p) => p.platform);
+  if (platforms.length === 0) throw new Error('No platforms selected');
+  log(`channels: ${platforms.join(', ')}`);
   const postIds: Partial<Record<Platform, string>> = {};
   const errors: string[] = [];
-  for (const platform of opts.platforms ?? PLATFORMS) {
+  for (const platform of platforms) {
     const channelId = spec.channels[platform];
     try {
       const input = buildPostInput(draft, c, platform, channelId, dueAt, base, brand);

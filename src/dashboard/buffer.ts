@@ -4,7 +4,7 @@ import { bufferConfig, getAccount, listChannels } from '../buffer.js';
 import { TEST_MODE } from '../config.js';
 import { getDraft } from '../db.js';
 import { startJob } from '../jobs.js';
-import { deleteBufferPosts, publishDraft, specBuffer } from '../publish.js';
+import { deleteBufferPosts, publishDraft, specBuffer, PLATFORMS, type Platform } from '../publish.js';
 import { esc } from './html.js';
 
 type Page = (title: string, body: string, active: string) => string;
@@ -53,8 +53,11 @@ export function registerBufferRoutes(app: Express, page: Page, wrap: Wrap): void
       res.status(404).send('unknown draft');
       return;
     }
+    const b = (req.body ?? {}) as Record<string, string | string[]>;
+    const raw = b['platforms'];
+    const chosen = (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((p): p is Platform => (PLATFORMS as string[]).includes(p));
     const job = startJob('publish', `Publish ${d.slot} ${d.weekOf}`, async (log) => {
-      const r = await publishDraft(d.id, { log });
+      const r = await publishDraft(d.id, { log, platforms: chosen.length ? chosen : undefined });
       return r.postIds;
     });
     res.redirect(`/jobs/${job.id}?next=/drafts/${d.id}`);

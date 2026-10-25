@@ -9,10 +9,11 @@ import { startJob } from '../jobs.js';
 import { hasApiKey } from '../claude.js';
 import { readManifest, siteDir } from '../capture.js';
 
-import { loadBrand } from '../render.js';
+import { loadBrand, type Brand } from '../render.js';
 import { validateContent } from '../validate.js';
 import { approve, reject } from '../workflow.js';
 import { TEST_MODE } from '../config.js';
+import { defaultPlatforms } from '../publish.js';
 import { reviseDraft } from '../revise.js';
 import { esc } from './html.js';
 import type { DraftContent } from '../validate.js';
@@ -85,7 +86,7 @@ async function cropEditor(d: Draft, c: DraftContent): Promise<string> {
 }
 
 /** Approve / revise / reject for the latest pending version; status notes otherwise. */
-function actions(d: Draft, versions: Draft[]): string {
+function actions(d: Draft, versions: Draft[], brand: Brand): string {
   const latest = versions.reduce((a, b) => (b.version > a.version ? b : a), d);
   if (latest.id !== d.id) return `<div class="warn">This is v${d.version}; the current version is <a href="/drafts/${latest.id}">v${latest.version}</a>.</div>`;
   if (d.status === 'pending') {
@@ -103,9 +104,13 @@ function actions(d: Draft, versions: Draft[]): string {
   }
   if (d.status === 'revising') return `<div class="warn">A revision is in progress for this version.</div>`;
   if (d.status === 'approved') {
-    return `<h2>Publish</h2><div class="row">
-      <form method="post" action="/drafts/${d.id}/publish" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: create posts on all four channels scheduled 60 days out?' : 'LIVE: schedule this post on all four channels?'}')"><button style="background:#2e7d32">${TEST_MODE ? 'Test-publish to Buffer (60 days out)' : 'Schedule on Buffer'}</button></form>
-      <span class="muted">Needs PUBLIC_BASE_URL so Buffer can fetch the renders. <a href="/buffer">Check Buffer status</a>.</span></div>
+    const choices = defaultPlatforms(d, brand);
+    return `<h2>Publish</h2>
+      <form method="post" action="/drafts/${d.id}/publish" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: create posts on the checked channels scheduled 60 days out?' : 'LIVE: schedule this post on the checked channels?'}')" class="card" style="max-width:760px">
+        <div class="row">${choices.map((c) => `<label title="${esc(c.reason ?? '')}"><input type="checkbox" name="platforms" value="${c.platform}" ${c.on ? 'checked' : ''}> ${c.platform}${c.reason ? ` <span class="muted">(off: ${esc(c.reason)})</span>` : ''}</label>`).join('')}</div>
+        <div class="row" style="margin-top:10px"><button style="background:#2e7d32">${TEST_MODE ? 'Test-publish to Buffer (60 days out)' : 'Schedule on Buffer'}</button>
+        <span class="muted">Needs PUBLIC_BASE_URL so Buffer can fetch the renders. <a href="/buffer">Check Buffer status</a>.</span></div>
+      </form>
       ${d.errorMessage ? `<div class="warn">Last attempt: ${esc(d.errorMessage)}</div>` : ''}`;
   }
   if (d.status === 'scheduled' || (d.status === 'error' && d.bufferPostIds)) {
@@ -233,7 +238,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         ${await cropEditor(d, c)}
         <h2>Captions</h2><div class="grid">${caption('instagram')}${caption('facebook')}${caption('linkedin')}${caption('googlebusiness')}</div>
         <h2>Slots</h2><pre class="muted">${esc(JSON.stringify({ slots: c.slots, crop: c.crop }, null, 2))}</pre>
-        ${actions(d, versions)}
+        ${actions(d, versions, await loadBrand())}
         <div class="row" style="margin-top:14px"><form method="post" action="/drafts/${d.id}/rerender"><button class="secondary">Re-render</button></form><a class="btn secondary" href="/?week=${d.weekOf}">Back</a></div>
         <details style="margin-top:18px"><summary class="muted">Claude conversation (${ctx.calls?.length ?? 0} call(s))</summary><pre class="muted" style="max-height:500px;overflow:auto">${esc(JSON.stringify(JSON.parse(d.generationContext), null, 2))}</pre></details>`;
       res.send(page('Draft', body, '/'));

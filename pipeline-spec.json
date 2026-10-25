@@ -239,6 +239,7 @@
   "guardrails": [
     "No code path posts to Buffer from a draft that is not status=approved.",
     "TEST_MODE defaults to true until explicitly flipped.",
+    "brand.json.platforms[*].templates and maxPerWeek limit which drafts default to a platform (Google Business: stat and list only, twice a week); the reviewer can override per draft at publish time.",
     "Client names appear in copy only when sites.<slug>.permissionToName is true.",
     "Sites with kind=own are Daedabyte's own: copy speaks in the first person and never calls them a client or attaches client proof points to them.",
     "Every Claude request and response is stored on the draft for replay and audit.",

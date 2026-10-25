@@ -152,3 +152,21 @@ describe('scheduling', () => {
     expect(captionFor(content as never, 'googlebusiness')).toBe('GB caption.');
   });
 });
+
+describe('platform rules', () => {
+  it('google business is off by default for quote/screenshot and after two posts in a week', async () => {
+    const { defaultPlatforms } = await import('../src/publish.js');
+    const { loadBrand } = await import('../src/render.js');
+    const brand = await loadBrand();
+    const quote = insertDraft({ weekOf: '2026-12-07', slot: 'mon', site: null, template: 'quote', contentJson: '{}', generationContext: '{}', costUsd: 0 });
+    expect(defaultPlatforms(quote, brand).find((c) => c.platform === 'googlebusiness')!.on).toBe(false);
+    const stat = insertDraft({ weekOf: '2026-12-07', slot: 'tue', site: null, template: 'stat', contentJson: '{}', generationContext: '{}', costUsd: 0 });
+    expect(defaultPlatforms(stat, brand).every((c) => c.on)).toBe(true);
+    for (const slot of ['wed', 'thu'] as const) {
+      insertDraft({ weekOf: '2026-12-07', slot, site: null, template: 'list', contentJson: '{}', generationContext: '{}', costUsd: 0, status: 'scheduled', bufferPostIds: JSON.stringify({ googlebusiness: 'x' }) });
+    }
+    const choice = defaultPlatforms(stat, brand).find((c) => c.platform === 'googlebusiness')!;
+    expect(choice.on).toBe(false);
+    expect(choice.reason).toMatch(/already has 2/);
+  });
+});

@@ -43,6 +43,18 @@ describe('renderDraft', () => {
     ).rejects.toThrow(/Accent word/);
   });
 
+  it('rejects a crop region outside the screenshot', async () => {
+    await expect(
+      renderDraft({
+        id: 't-region',
+        template: 'screenshot',
+        slots: { headline: 'Built to last.', accentWord: 'last' },
+        crop: { screenshot: 'sample-desktop.png', region: [0, 0, 1440, 2000], treatment: 'framed' },
+        screenshotDir: path.join(ROOT, 'fixtures', 'screenshots'),
+      }),
+    ).rejects.toThrow(/outside/);
+  });
+
   it('writes square and portrait PNGs at the brand canvas sizes', async () => {
     const outDir = await mkdtemp(path.join(tmpdir(), 'render-'));
     const r = await renderDraft(

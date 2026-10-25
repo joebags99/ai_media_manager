@@ -224,6 +224,9 @@ window.__ad = {
       const img = view.querySelector('img');
       if (!img || !img.naturalWidth) continue;
       const [x, y, w, h] = region || [0, 0, img.naturalWidth, img.naturalHeight];
+      if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > img.naturalWidth || y + h > img.naturalHeight) {
+        throw new Error('Crop region [' + [x, y, w, h] + '] falls outside the ' + img.naturalWidth + 'x' + img.naturalHeight + ' screenshot');
+      }
       let W, H;
       if (view.dataset.crop === 'contain') {
         const area = view.closest('[data-crop-area]');

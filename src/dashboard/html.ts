@@ -6,6 +6,7 @@ export function esc(s: unknown): string {
 
 const NAV = [
   ['/', 'Drafts'],
+  ['/plan', 'Plan'],
   ['/templates', 'Templates'],
   ['/sites', 'Sites'],
   ['/jobs', 'Jobs'],

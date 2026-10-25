@@ -24,7 +24,7 @@
     "brand": "brand/brand.json",
     "exampleAds": "brand/examples/*.png",
     "sites": "sites/*.json",
-    "calendar": "data/calendar.json"
+    "calendar": "data/calendar.json (written by the plan step; edited in the dashboard, not by hand)"
   },
 
   "externalServices": {
@@ -74,6 +74,11 @@
         "does": "Load a site recipe, dismiss banners, wait for selectors, capture desktop (1440px) and mobile (390px) PNGs for each named section.",
         "input": "sites/<slug>.json (created and edited from the dashboard Sites page)",
         "output": "data/screenshots/<slug>/<section>-<viewport>.png + manifest.json"
+      },
+      "plan": {
+        "file": "src/plan.ts",
+        "does": "Ask Claude for the week: one template + subject (+ optional site) per weekday, given brand.json, the sites (kind, captured sections) and recent drafts. Rules: vary templates, quote only with a captured testimonials section, screenshot only with a captured site. Reviewer edits the plan in the dashboard before generation.",
+        "output": "data/calendar.json"
       },
       "generate": {
         "file": "src/generate.ts",
@@ -135,7 +140,7 @@
       "renderPortrait": "path",
       "status": "pending|revising|approved|scheduled|rejected|posted|error",
       "feedback": "text or null",
-      "generationContext": "JSON of the messages sent to Claude, for replay",
+      "generationContext": "JSON: plan day + messages sent to Claude (images stored as {type:image_ref,file} markers, reloaded on replay) + every request/response/cost",
       "bufferPostIds": "JSON map channel -> postId",
       "scheduledAt": "ISO datetime or null",
       "createdAt": "ISO datetime",
@@ -172,7 +177,7 @@
       "any -> error": "unhandled failure; message stored"
     },
     "weeklyRun": [
-      "Read calendar for next week: five slots, each with template and subject.",
+      "Plan next week with Claude unless data/calendar.json already covers it: five slots, each with template, subject and optional site.",
       "Capture screenshots for any site referenced this week (skip if cached under 7 days).",
       "Generate one draft per slot.",
       "Render both sizes per draft.",

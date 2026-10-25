@@ -16,6 +16,7 @@ import { siteDir } from './capture.js';
 import { renderDraft, type RenderInput } from './render.js';
 import { getJob, recentJobs, startJob } from './jobs.js';
 import { esc, jobView, layout } from './dashboard/html.js';
+import { registerDraftRoutes } from './dashboard/drafts.js';
 
 const page = (title: string, body: string, active: string) => layout(title, body, { testMode: TEST_MODE, active });
 const wrap = (fn: (req: Request, res: Response) => Promise<void>) => (req: Request, res: Response, next: NextFunction) =>
@@ -27,16 +28,7 @@ export function createApp(): express.Express {
   app.use('/renders', express.static(RENDERS_DIR));
   app.use('/screenshots', express.static(SCREENSHOTS_DIR));
 
-  // ---- Drafts (M4 fills this in) -------------------------------------------------
-  app.get('/', (_req, res) => {
-    res.send(
-      page(
-        'Drafts',
-        `<h1>Drafts</h1><p class="muted">No drafts yet. Generation arrives in M3; approve / revise / reject in M4.</p>`,
-        '/',
-      ),
-    );
-  });
+  registerDraftRoutes(app, page, wrap);
 
   // ---- Templates: fixture previews ------------------------------------------------
   app.get(

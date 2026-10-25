@@ -14,7 +14,8 @@
     "test": "vitest run",
     "review": "tsx src/cli.ts review",
     "capture": "tsx src/cli.ts capture",
-    "render:fixtures": "tsx src/render.ts --fixtures"
+    "render:fixtures": "tsx src/render.ts --fixtures",
+    "weekly": "tsx src/cli.ts weekly"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

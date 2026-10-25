@@ -16,7 +16,9 @@
     "capture": "tsx src/cli.ts capture",
     "render:fixtures": "tsx src/render.ts --fixtures",
     "weekly": "tsx src/cli.ts weekly",
-    "revise": "tsx src/cli.ts revise"
+    "revise": "tsx src/cli.ts revise",
+    "publish": "tsx src/cli.ts publish",
+    "buffer:delete": "tsx src/cli.ts buffer:delete"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

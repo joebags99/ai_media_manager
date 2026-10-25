@@ -12,6 +12,7 @@ import { readManifest, siteDir } from '../capture.js';
 import { loadBrand } from '../render.js';
 import { validateContent } from '../validate.js';
 import { approve, reject } from '../workflow.js';
+import { TEST_MODE } from '../config.js';
 import { reviseDraft } from '../revise.js';
 import { esc } from './html.js';
 import type { DraftContent } from '../validate.js';
@@ -101,7 +102,19 @@ function actions(d: Draft, versions: Draft[]): string {
     </form>`;
   }
   if (d.status === 'revising') return `<div class="warn">A revision is in progress for this version.</div>`;
-  if (d.status === 'approved') return `<div class="warn" style="border-color:#2e7d32">Approved. Publishing to Buffer arrives in M5.</div>`;
+  if (d.status === 'approved') {
+    return `<h2>Publish</h2><div class="row">
+      <form method="post" action="/drafts/${d.id}/publish" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: create posts on all four channels scheduled 60 days out?' : 'LIVE: schedule this post on all four channels?'}')"><button style="background:#2e7d32">${TEST_MODE ? 'Test-publish to Buffer (60 days out)' : 'Schedule on Buffer'}</button></form>
+      <span class="muted">Needs PUBLIC_BASE_URL so Buffer can fetch the renders. <a href="/buffer">Check Buffer status</a>.</span></div>
+      ${d.errorMessage ? `<div class="warn">Last attempt: ${esc(d.errorMessage)}</div>` : ''}`;
+  }
+  if (d.status === 'scheduled' || (d.status === 'error' && d.bufferPostIds)) {
+    const ids = d.bufferPostIds ? (JSON.parse(d.bufferPostIds) as Record<string, string>) : {};
+    return `<h2>Buffer</h2>
+      ${d.status === 'error' ? `<div class="warn">Publish failed part-way: ${esc(d.errorMessage ?? '')}. The posts below were created and can be removed.</div>` : `<p>Scheduled for <b>${esc(d.scheduledAt?.slice(0, 16).replace('T', ' ') ?? '')} UTC</b>${TEST_MODE ? ' (test mode)' : ''}.</p>`}
+      <table style="max-width:600px">${Object.entries(ids).map(([p, id]) => `<tr><td>${esc(p)}</td><td class="muted">${esc(id)}</td></tr>`).join('')}</table>
+      <form method="post" action="/drafts/${d.id}/unpublish" onsubmit="return confirm('Delete these ${Object.keys(ids).length} posts from Buffer?')" style="margin-top:10px"><button class="danger">Delete ${TEST_MODE ? 'test ' : ''}posts from Buffer</button> <span class="muted">Same as <code>${esc(`npm run buffer:delete -- ${Object.values(ids).join(' ')}`)}</code></span></form>`;
+  }
   if (d.status === 'rejected') return `<div class="warn">Rejected. The next weekly run will generate a fresh draft for this day.</div>`;
   return '';
 }

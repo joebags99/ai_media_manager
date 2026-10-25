@@ -34,7 +34,7 @@
       "notes": "Check docs.claude.com for the current model string and image-input format before coding. Return strict JSON; no prose."
     },
     "buffer": {
-      "use": "upload media, create scheduled post, read channel schedule, delete post",
+      "use": "create scheduled post (images by public URL; the current API has no upload endpoint), delete post",
       "auth": "BUFFER_ACCESS_TOKEN",
       "organizationId": "6995da98b50c73bfc1a845f1",
       "channels": {
@@ -97,7 +97,7 @@
       },
       "publish": {
         "file": "src/publish.ts",
-        "does": "Upload render, create a scheduled Buffer post per channel with the platform-specific caption, store Buffer post IDs.",
+        "does": "Serve the renders at PUBLIC_BASE_URL (Buffer fetches images by URL), create a scheduled Buffer post per channel with the platform-specific caption, store Buffer post IDs.",
         "guard": "Only runs on status=approved. In TEST_MODE schedules 60 days out and logs the delete command."
       },
       "dashboard": {
@@ -232,8 +232,8 @@
   },
 
   "environment": {
-    "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN"],
-    "optional": ["ANTHROPIC_WORKSPACE_ID (org-level keys only)", "TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
+    "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN", "PUBLIC_BASE_URL (for publishing: where Buffer can fetch renders)"],
+    "optional": ["ANTHROPIC_WORKSPACE_ID (org-level keys only)", "BUFFER_API_URL=https://api.buffer.com", "TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
   },
 
   "guardrails": [

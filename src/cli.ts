@@ -4,6 +4,7 @@ import { captureSite } from './capture.js';
 import { startDashboard } from './dashboard.js';
 import { runWeekly } from './weekly.js';
 import { reviseDraft } from './revise.js';
+import { publishDraft, deleteBufferPosts } from './publish.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -11,7 +12,8 @@ const usage = `Usage:
   npm run review                 start the dashboard
   npm run capture -- <site>      capture one site recipe
   npm run weekly [-- YYYY-MM-DD] plan -> capture -> generate -> render
-  npm run publish -- <draftId>   (M5) publish one approved draft
+  npm run publish -- <draftId>   schedule one approved draft to Buffer
+  npm run buffer:delete -- <postId...>   remove Buffer posts (the logged cleanup)
   npm run revise -- <draftId> "feedback"   new version from feedback`;
 
 switch (cmd) {
@@ -41,6 +43,24 @@ switch (cmd) {
     }
     const next = await reviseDraft(id, feedback, { log: (l) => console.log(`[revise] ${l}`) });
     console.log(`v${next.version}: ${next.renderSquare}`);
+    break;
+  }
+  case 'publish': {
+    const id = args[0];
+    if (!id) {
+      console.error(usage);
+      process.exit(1);
+    }
+    const r = await publishDraft(id);
+    console.log(JSON.stringify({ postIds: r.postIds, scheduledAt: r.scheduledAt, deleteCommand: r.deleteCommand }, null, 2));
+    break;
+  }
+  case 'buffer:delete': {
+    if (!args.length) {
+      console.error(usage);
+      process.exit(1);
+    }
+    await deleteBufferPosts(args);
     break;
   }
   default:

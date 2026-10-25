@@ -17,6 +17,7 @@ import { renderDraft, type RenderInput } from './render.js';
 import { getJob, recentJobs, startJob } from './jobs.js';
 import { esc, jobView, layout } from './dashboard/html.js';
 import { registerDraftRoutes } from './dashboard/drafts.js';
+import { registerBufferRoutes } from './dashboard/buffer.js';
 
 const page = (title: string, body: string, active: string) => layout(title, body, { testMode: TEST_MODE, active });
 const wrap = (fn: (req: Request, res: Response) => Promise<void>) => (req: Request, res: Response, next: NextFunction) =>
@@ -29,6 +30,7 @@ export function createApp(): express.Express {
   app.use('/screenshots', express.static(SCREENSHOTS_DIR));
 
   registerDraftRoutes(app, page, wrap);
+  registerBufferRoutes(app, page, wrap);
 
   // ---- Templates: fixture previews ------------------------------------------------
   app.get(

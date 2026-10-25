@@ -1,0 +1,32 @@
+{
+  "name": "The Little Cheese Collective",
+  "url": "https://thelittlecheese.com/",
+  "industry": "Charcuterie Caterers",
+  "kind": "client",
+  "permissionToName": true,
+  "recipe": {
+    "dismiss": [],
+    "waitFor": [
+      "#hero"
+    ],
+    "settleMs": 800,
+    "sections": [
+      {
+        "name": "hero",
+        "selector": "#hero"
+      },
+      {
+        "name": "services",
+        "selector": "section.occasion-options.bg-neutral-100"
+      },
+      {
+        "name": "work",
+        "selector": "section.section.best-sellers"
+      },
+      {
+        "name": "testimonials",
+        "selector": "section.section.testimonials-section"
+      }
+    ]
+  }
+}

@@ -93,6 +93,41 @@
       ],
       "align": "left",
       "bg": "ink"
+    },
+    "headline": {
+      "slots": [
+        "headline",
+        "accentWord",
+        "support"
+      ],
+      "align": "left",
+      "bg": "ink"
+    },
+    "question": {
+      "slots": [
+        "question",
+        "answer"
+      ],
+      "align": "left",
+      "bg": "bone"
+    },
+    "tip": {
+      "slots": [
+        "label",
+        "tip",
+        "detail"
+      ],
+      "align": "left",
+      "bg": "inkSoft"
+    },
+    "holiday": {
+      "slots": [
+        "greeting",
+        "line"
+      ],
+      "align": "center",
+      "bg": "ink",
+      "seasonal": true
     }
   },
   "voice": {
@@ -156,7 +191,11 @@
       "link": "button",
       "templates": [
         "stat",
-        "list"
+        "list",
+        "headline",
+        "tip",
+        "question",
+        "holiday"
       ],
       "maxPerWeek": 2
     }

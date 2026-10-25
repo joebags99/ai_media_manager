@@ -16,7 +16,8 @@ export const CALENDAR_DIR = path.join(DATA_DIR, 'calendar');
 const LEGACY_PATH = path.join(DATA_DIR, 'calendar.json');
 export const planPath = (weekOf: string) => path.join(CALENDAR_DIR, `${weekOf}.json`);
 
-export type PlanTemplate = 'list' | 'stat' | 'quote' | 'screenshot' | 'none';
+export type PlanTemplate = 'list' | 'stat' | 'quote' | 'screenshot' | 'headline' | 'question' | 'tip' | 'holiday' | 'none';
+export const PLAN_TEMPLATES: PlanTemplate[] = ['list', 'stat', 'quote', 'screenshot', 'headline', 'question', 'tip', 'holiday', 'none'];
 
 export interface PlanDay {
   slot: Slot;
@@ -107,11 +108,11 @@ function defaultPlan(weekOf: string, brand: Brand, sites: SiteSummary[]): Plan {
   const own = sites.find((s) => s.kind === 'own' && s.captured) ?? null;
   const withQuote = sites.find((s) => s.kind === 'own' && s.captured && s.sections.includes('testimonials')) ?? null;
   const base: Record<Slot, Omit<PlanDay, 'slot' | 'date' | 'holiday' | 'theme'>> = {
-    mon: { template: 'list', subject: 'Four things a dated website costs a small business', site: null, reason: 'default rotation' },
+    mon: { template: 'headline', subject: 'Websites built to last, not to be rebuilt every two years', site: null, reason: 'default rotation' },
     tue: { template: 'stat', subject: voice.proofPoints[2] ?? 'A proof point', site: null, reason: 'default rotation' },
-    wed: { template: client || own ? 'screenshot' : 'list', subject: client ? `Recent work: ${client.name}` : own ? 'How we build' : 'What a fast site feels like', site: (client ?? own)?.slug ?? null, reason: 'default rotation' },
-    thu: withQuote ? { template: 'quote', subject: 'A client testimonial about us', site: withQuote.slug, reason: 'our testimonials section is captured' } : { template: 'stat', subject: voice.proofPoints[3] ?? 'Reply time', site: null, reason: 'no testimonials captured' },
-    fri: { template: 'list', subject: 'What to ask before hiring a web designer', site: null, reason: 'default rotation' },
+    wed: { template: client || own ? 'screenshot' : 'tip', subject: client ? `Recent work: ${client.name}` : own ? 'How we build' : 'One small fix that gets more calls', site: (client ?? own)?.slug ?? null, reason: 'default rotation' },
+    thu: withQuote ? { template: 'quote', subject: 'A client testimonial about us', site: withQuote.slug, reason: 'our testimonials section is captured' } : { template: 'question', subject: 'Does your site load before the customer gives up', site: null, reason: 'no testimonials captured' },
+    fri: { template: 'list', subject: 'Four things a dated website costs a small business', site: null, reason: 'default rotation' },
     sat: { template: 'none', subject: '', site: null, reason: 'weekend' },
     sun: { template: 'none', subject: '', site: null, reason: 'weekend' },
   };
@@ -119,9 +120,8 @@ function defaultPlan(weekOf: string, brand: Brand, sites: SiteSummary[]): Plan {
     const ctx = dayContext(weekOf, slot);
     const d = { slot, ...base[slot], date: ctx.date, holiday: ctx.holiday?.name ?? null, theme: ctx.theme };
     if (ctx.holiday) {
-      if (ctx.holiday.post && d.template === 'none') return { ...d, template: 'list', subject: `${ctx.holiday.name}: ${ctx.holiday.note}`, reason: `${ctx.holiday.name} falls on this day` };
-      if (!ctx.holiday.post && d.template !== 'none') return { ...d, template: 'none', subject: '', site: null, reason: `${ctx.holiday.name}: no post (${ctx.holiday.note})` };
-      return { ...d, subject: `${ctx.holiday.name}: ${d.subject}`, reason: `${ctx.holiday.name}` };
+      if (ctx.holiday.post) return { ...d, template: 'holiday', site: null, subject: `${ctx.holiday.name} greeting`, reason: `${ctx.holiday.name}: a simple greeting` };
+      if (d.template !== 'none') return { ...d, template: 'none', subject: '', site: null, reason: `${ctx.holiday.name}: no post (${ctx.holiday.note})` };
     }
     return d;
   });
@@ -141,7 +141,7 @@ const SCHEMA = {
         required: ['slot', 'template', 'subject', 'site', 'reason'],
         properties: {
           slot: { type: 'string', enum: SLOTS },
-          template: { type: 'string', enum: ['list', 'stat', 'quote', 'screenshot', 'none'], description: '"none" = no post that day' },
+          template: { type: 'string', enum: PLAN_TEMPLATES, description: '"none" = no post that day' },
           subject: { type: 'string', description: 'one sentence brief for the copywriter' },
           site: { type: ['string', 'null'], description: 'site slug the post is about, or null' },
           reason: { type: 'string', description: 'one short sentence for the reviewer' },
@@ -165,16 +165,20 @@ export async function planWeek(weekOf: string, log: (s: string) => void = () => 
   const seasonal = week.find((d) => d.theme && !d.holiday)?.theme ?? null;
   const system = `You plan a week of social ads for ${brand.name} (${brand['tagline']}), a small web design studio. The week runs Monday to Sunday. Pick one template and a one-sentence subject for each weekday, Monday to Friday. Saturday and Sunday are "none" (no post) unless a holiday worth posting on falls there.
 
-Templates:
-- list: four punchy one-word lines plus a short verdict. Good for pain points, checklists, contrasts.
+Templates (text-only unless noted):
+- headline: one big 3-5 word statement with an accent word, plus a supporting sentence. The workhorse for positioning and values.
+- question: a big italic question the reader recognises, then a short bold answer. Good for objections and pain points.
+- tip: a labelled practical tip ("Tip 03") with one line of detail. Useful, generous, no pitch.
 - stat: one big number, a 3-5 word claim, a kicker. Use the studio's real proof points only: ${JSON.stringify(voice['proofPoints'])}.
+- list: four punchy one-word lines plus a short verdict. Strong but loud: AT MOST ONCE PER WEEK.
 - quote: a testimonial ABOUT THE STUDIO from one of its own clients. ONLY allowed with a site of kind "own" whose captured sections include "testimonials" (that is where the studio's client reviews live). Never use a client site's reviews: those are the client's customers talking about the client, not about us.
 - screenshot: a headline with one accent word over a crop of a real site. Needs a captured site.
+- holiday: a simple greeting card ("Happy Thanksgiving.") with one warm line in our voice. ONLY on a holiday day; it is the right choice for every holiday worth posting on.
 
 Every post is about what the studio does: its work (client sites as examples of our craft), its results (proof points), its clients' words about it. Never make a post about what a client's customers think of the client.
 Holidays this week:
 ${holidayLines.length ? holidayLines.join('\n') : '- none'}
-A day marked "(no post)" must be template "none". A holiday worth posting on gets a post that acknowledges it naturally in the subject (the copy will be rendered in that holiday's seasonal colors); keep it on-brand, no sales pitch on sombre days.${seasonal ? ` The week is in the run-up to a ${seasonal} theme; subjects may nod to the season.` : ''}
+A day marked "(no post)" must be template "none". A holiday worth posting on gets template "holiday": a short greeting with a little Daedabyte flavor, no pitch. Subjects for other days in a holiday week may nod to the season lightly or not at all.${seasonal ? ` The week is in the run-up to a ${seasonal} theme; subjects may nod to the season.` : ''}
 Rules: vary templates across the week (no template three times, no two in a row), spread sites out, prefer sites not used recently. Sites of kind "own" are the studio's own site: posts about them speak in the first person and never present them as a client or attach client proof points. Client sites with permissionToName=false must stay anonymous in the subject. Keep subjects concrete and specific to the site or proof point. Return only JSON.`;
   const user = `Week of ${weekOf}.\n\nSites:\n${JSON.stringify(sites, null, 1)}\n\nRecent posts (avoid repeating):\n${JSON.stringify(recent, null, 1)}`;
   const r = await askJson<{ days: PlanDay[] }>({ system, messages: [{ role: 'user', content: user }], schema: SCHEMA, effort: 'medium', maxTokens: 2048 });
@@ -190,6 +194,8 @@ Rules: vary templates across the week (no template three times, no two in a row)
     const sum = site ? sites.find((s) => s.slug === site) : null;
     let template: PlanTemplate = d.template;
     if (ctx.holiday && !ctx.holiday.post) template = 'none';
+    if (ctx.holiday?.post) template = 'holiday';
+    if (template === 'holiday' && !ctx.holiday) template = 'headline';
     if (template === 'quote' && !(sum && sum.kind === 'own' && sum.sections.includes('testimonials'))) template = 'stat';
     if (template === 'screenshot' && !(sum && sum.captured)) template = 'list';
     return { slot, date: ctx.date, template, subject: template === 'none' ? '' : d.subject, site: template === 'none' ? null : site, reason: d.reason, holiday: ctx.holiday?.name ?? null, theme: ctx.theme };

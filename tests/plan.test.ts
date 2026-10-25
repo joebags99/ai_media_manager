@@ -43,3 +43,25 @@ describe('seasonal themes', () => {
     expect((await readFile(r.square)).length).toBeGreaterThan(1000);
   }, 30_000);
 });
+
+describe('new templates', () => {
+  it('holiday days get the holiday template and the default rotation uses list once', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    const plan = await planWeek('2026-11-23', () => {}); // Thanksgiving week
+    const by = Object.fromEntries(plan.days.map((d) => [d.slot, d]));
+    expect(by['thu']!.template).toBe('holiday');
+    expect(by['thu']!.theme).toBe('autumn');
+    expect(by['sat']!.template).toBe('holiday'); // Small Business Saturday
+    expect(plan.days.filter((d) => d.template === 'list').length).toBeLessThanOrEqual(1);
+  });
+  it('validation covers the new templates', async () => {
+    const { validateContent } = await import('../src/validate.js');
+    const brand = await loadBrand();
+    const base = { crop: { screenshot: null, region: null, treatment: 'framed' as const }, captions: { instagram: 'a', facebook: 'b', linkedin: 'c', googlebusiness: 'd' }, hashtags: { instagram: ['#Daedabyte', '#WebDesign', '#SmallBusiness', '#SEO', '#MtJackson'], facebook: [], linkedin: ['#Daedabyte', '#WebDesign', '#SmallBusiness'] }, rationale: 'r' };
+    expect(validateContent(brand, { ...base, template: 'headline', slots: { headline: 'Built to last.', accentWord: 'last', support: 'Still working in five years.' } }, {})).toEqual([]);
+    expect(validateContent(brand, { ...base, template: 'headline', slots: { headline: 'Built to last.', accentWord: 'fast', support: 'x' } }, {})).toContain('accentWord does not appear in headline');
+    expect(validateContent(brand, { ...base, template: 'tip', slots: { label: 'Tip 03', tip: 'This tip is far too long to pass the rule', detail: 'x' } }, {}).join()).toMatch(/tip\.tip has/);
+    expect(validateContent(brand, { ...base, template: 'holiday', slots: { greeting: 'Happy Thanksgiving.', line: 'Thankful for every client.' } }, {})).toEqual([]);
+    expect(validateContent(brand, { ...base, template: 'question', slots: { question: 'Does it load?', answer: 'Ours do.' } }, {})).toEqual([]);
+  });
+});

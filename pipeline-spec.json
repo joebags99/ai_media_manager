@@ -133,7 +133,7 @@
       "weekOf": "ISO date",
       "slot": "mon|tue|wed|thu|fri|sat|sun (weekends empty unless a holiday falls there)",
       "site": "slug or null",
-      "template": "list|stat|quote|screenshot",
+      "template": "list|stat|quote|screenshot|headline|question|tip|holiday",
       "version": "int",
       "contentJson": "slot values + captions per platform + hashtags + crop",
       "renderSquare": "path",
@@ -194,7 +194,7 @@
     "systemPrompt": "brand.json (name, tagline, colors, fonts, voice rules, proof points, CTAs, hashtags, platforms) + template slot schema + the calendar slot's subject",
     "userContent": "screenshots as image inputs (max 6) + manifest describing each + any prior feedback",
     "responseSchema": {
-      "template": "list|stat|quote|screenshot",
+      "template": "list|stat|quote|screenshot|headline|question|tip|holiday",
       "slots": "object keyed by that template's slot names",
       "crop": {
         "screenshot": "filename or null",
@@ -227,7 +227,7 @@
 
   "templates": {
     "dir": "templates/",
-    "files": ["list.html", "stat.html", "quote.html", "screenshot.html"],
+    "files": ["list.html", "stat.html", "quote.html", "screenshot.html", "headline.html", "question.html", "tip.html", "holiday.html"],
     "contract": "Each file is self-contained HTML+CSS. Slot values are injected into data-slot attributes. Colors and fonts come from CSS variables set at render time from brand.json. Icon is an inline SVG from brand/assets/icon.svg. Fonts are loaded locally from brand/assets/fonts/ so rendering is deterministic."
   },
 

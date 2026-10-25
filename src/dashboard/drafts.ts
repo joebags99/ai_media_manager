@@ -19,7 +19,7 @@ import { badge, empty, esc, notice, pageHead, section } from './html.js';
 type Page = (title: string, body: string, active: string) => string;
 type Wrap = (fn: (req: Request, res: Response) => Promise<void>) => RequestHandler;
 
-const TEMPLATES = ['list', 'stat', 'quote', 'screenshot', 'none'] as const;
+const TEMPLATES = ['headline', 'question', 'tip', 'stat', 'list', 'quote', 'screenshot', 'holiday', 'none'] as const;
 const DAY_NAMES: Record<Slot, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
 const STATUS_HELP: Record<string, string> = {
   pending: 'Waiting for your review.',
@@ -395,7 +395,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         `<form method="post" action="/plan">
           <input type="hidden" name="weekOf" value="${esc(weekOf)}">
           <table><tr><th>Day</th><th>Template</th><th>Site</th><th>Subject</th></tr>${days.map(row).join('')}</table>
-          <p class="hint">Saturday and Sunday are "no post" unless a holiday falls there. quote needs our own site with a captured testimonials section; screenshot needs a captured site. Google Business only takes stat and list posts. Posts on or just before a themed holiday render in that season's accent colors.</p>
+          <p class="hint">Saturday and Sunday are "no post" unless a holiday falls there; holiday days use the holiday greeting template. quote needs our own site with a captured testimonials section; screenshot needs a captured site; list at most once a week. Posts on or just before a themed holiday render in that season's accent colors.</p>
           <div class="row"><button class="secondary">Save plan</button><button name="then" value="run" class="primary">Save and run weekly</button></div>
         </form>`;
       res.send(page('Plan', body, '/plan'));

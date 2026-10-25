@@ -1,0 +1,1 @@
+{ "id": "fixture-tip", "template": "tip", "slots": { "label": "Tip 03", "tip": "Put your phone number up top.", "detail": "Most local customers decide on mobile. Make the call one tap away." } }

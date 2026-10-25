@@ -34,6 +34,10 @@ const page = (title: string, body: string, active: string) => layout(title, body
 const wrap = (fn: (req: Request, res: Response) => Promise<void>) => (req: Request, res: Response, next: NextFunction) => fn(req, res).catch(next);
 
 const TEMPLATE_HELP: Record<string, string> = {
+  headline: 'One big statement with an orange word and a supporting line. The workhorse.',
+  question: 'A question the reader recognises, then a short bold answer, on bone.',
+  tip: 'A labelled practical tip with one line of detail. Useful, no pitch.',
+  holiday: 'A greeting card in the season\u2019s colors with one warm line. Holiday days only.',
   list: 'Four accent-colored words and a white verdict. Pain points, checklists, contrasts.',
   stat: 'A gold number, a 3–5 word claim, an orange kicker. Proof points only.',
   quote: 'A client of ours, quoted verbatim from our own testimonials section.',

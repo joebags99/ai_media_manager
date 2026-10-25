@@ -57,6 +57,10 @@ export const responseSchema = (template: string, slots: string[]) => ({
 });
 
 const TEMPLATE_NOTES: Record<string, string> = {
+  headline: 'headline: 3-5 words, one of which is accentWord (copied exactly from the headline) and set in orange. support: one plain sentence under 14 words that earns the headline.',
+  question: 'question: a question the reader would ask themselves, under 12 words, ending in "?". answer: 2-4 words, confident, ending in a period.',
+  tip: 'label: "Tip" plus a two-digit number, e.g. "Tip 03" (vary the number). tip: 3-5 words of practical advice. detail: one sentence under 18 words explaining why. Useful, no pitch.',
+  holiday: 'This is a greeting card, nothing more. greeting: 2-3 words like "Happy Thanksgiving." or "Merry Christmas." line: one warm sentence under 16 words with a little Daedabyte flavor (small businesses, the valley, building things that last). No offer, no CTA, no proof points. Captions: one or two friendly sentences, same spirit; hashtags only the brand ones.',
   list: 'Four one-word lines (line1-line4), each a single word with a period, e.g. "Slow." Then a verdict of 3-5 words that resolves them. The four words are set in brand accent colors, the verdict in white.',
   stat: 'number: a short figure like "40%" or "24h" taken from the proof points. claim: 3-5 words in white. kicker: a short CTA or qualifier in orange caps. Set crop.treatment "dimmed" with a screenshot to put a dim site behind the number, or leave crop.screenshot null for a plain ink background.',
   quote: 'The testimonial is a client of OURS talking about OUR work, copied verbatim from the testimonials screenshot of our own site (under 30 words; trim to whole sentences, never invent or paraphrase). name: the reviewer\'s name exactly as shown (first name + initial is fine). business: their business as shown, or their industry if not shown.',
@@ -197,7 +201,8 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
   const dims: ShotDims = Object.fromEntries(shots.map((s) => [s.file, { width: s.width, height: s.height }]));
 
   const lines = [`Week of ${input.weekOf}, ${day.slot.toUpperCase()} ${day.date ?? ''} post.`, `Subject: ${day.subject}`];
-  if (day.holiday) lines.push(`Holiday: today is ${day.holiday}. Acknowledge it naturally in the copy and captions (one light touch, not the whole post). The image will be rendered in seasonal colors.`);
+  if (day.holiday && template === 'holiday') lines.push(`Holiday: ${day.holiday}. A simple greeting in our voice; the image is rendered in seasonal colors.`);
+  else if (day.holiday) lines.push(`Holiday: today is ${day.holiday}. One light acknowledgement in the captions at most; the post itself stays on its subject.`);
   else if (day.theme) lines.push(`Season: the image will be rendered in "${day.theme}" seasonal colors; the copy may nod to the season but need not.`);
   if (site) {
     lines.push(`Site: ${site.kind === 'own' ? `OUR OWN site, ${site.name}` : site.permissionToName ? `client "${site.name}"` : `an anonymous client (${site.industry || 'small business'}; do not name them)`} (${site.industry}).`);

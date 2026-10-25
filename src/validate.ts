@@ -20,7 +20,7 @@ export interface DraftContent {
 }
 
 /** Slots the 3-5 word headline rule applies to (spec change approved 2026-10-24). */
-export const HEADLINE_SLOTS: Record<string, string> = { screenshot: 'headline', stat: 'claim', list: 'verdict' };
+export const HEADLINE_SLOTS: Record<string, string> = { screenshot: 'headline', headline: 'headline', stat: 'claim', list: 'verdict', tip: 'tip' };
 
 export function wordCount(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
@@ -89,7 +89,7 @@ export function validateContent(brand: Brand, c: DraftContent, shots: ShotDims, 
   } else if (needsShot) {
     errors.push(`${c.template} needs crop.screenshot`);
   }
-  if (c.template === 'screenshot' && c.slots?.['headline'] && c.slots?.['accentWord']) {
+  if (def.slots.includes('accentWord') && c.slots?.['headline'] && c.slots?.['accentWord']) {
     if (!c.slots['headline'].toLowerCase().includes(c.slots['accentWord'].toLowerCase())) errors.push('accentWord does not appear in headline');
   }
   return errors;

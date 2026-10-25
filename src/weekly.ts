@@ -8,7 +8,7 @@ import { COST_CEILING_USD } from './config.js';
 import { finishRun, listDrafts, nextWeekOf, startRun, updateDraft, type Draft } from './db.js';
 import { generateDraft, type Ask } from './generate.js';
 import { planWeek, readPlan, writePlan, type Plan } from './plan.js';
-import { renderDraft } from './render.js';
+import { renderDraft, type TemplateName } from './render.js';
 import type { DraftContent } from './validate.js';
 import { sendDigest } from './notify.js';
 
@@ -27,7 +27,7 @@ export async function renderDraftRow(draft: Draft): Promise<Draft> {
   const content = JSON.parse(draft.contentJson) as DraftContent;
   const r = await renderDraft({
     id: draft.version > 1 ? `${draft.id}-v${draft.version}` : draft.id,
-    template: draft.template as DraftContent['template'] as 'list' | 'stat' | 'quote' | 'screenshot',
+    template: draft.template as TemplateName,
     slots: content.slots,
     crop: content.crop,
     screenshotDir: draft.site ? siteDir(draft.site) : undefined,

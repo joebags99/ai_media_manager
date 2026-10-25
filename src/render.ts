@@ -18,7 +18,7 @@ const TEMPLATES_DIR = path.join(ROOT, 'templates');
 const FIXTURES_DIR = path.join(ROOT, 'fixtures');
 export const RENDERS_DIR = path.join(ROOT, 'data', 'renders');
 
-export type TemplateName = 'list' | 'stat' | 'quote' | 'screenshot';
+export type TemplateName = 'list' | 'stat' | 'quote' | 'screenshot' | 'headline' | 'question' | 'tip' | 'holiday';
 export type Format = 'square' | 'portrait';
 export type Region = [number, number, number, number];
 
@@ -324,7 +324,7 @@ export async function renderDraft(input: RenderInput, opts: RenderOptions = {}):
           slots: input.slots,
           icon,
           image,
-          brand: { name: brand.name, siteHost: new URL(brand.site).host, tagline: brand['tagline'] },
+          brand: { name: brand.name, siteHost: new URL(brand.site).host, tagline: brand['tagline'], signoff: `From all of us at ${brand.name.split(' ')[0]}` },
         };
         const consumed = (await page.evaluate(`window.__ad.fill(${JSON.stringify(payload)})`)) as string[];
         const unused = textSlots(brand, input.template).filter((s) => !consumed.includes(s));

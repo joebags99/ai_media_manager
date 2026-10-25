@@ -33,7 +33,7 @@ reachable from the internet (`cloudflared tunnel --url http://localhost:3000` lo
 
 ```
 brand/        brand.json, icon.svg, fonts, example ads
-templates/    list / stat / quote / screenshot HTML, driven by brand.json CSS variables
+templates/    eight ad layouts (headline, question, tip, stat, list, quote, screenshot, holiday), driven by brand.json CSS variables
 fixtures/     hard-coded JSON used by the Templates page and tests
 sites/        one capture recipe per site (edited from the dashboard)
 src/          capture, inspect, plan, generate, validate, render, revise, workflow,

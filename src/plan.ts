@@ -71,13 +71,13 @@ function defaultPlan(weekOf: string, brand: Brand, sites: SiteSummary[]): Plan {
   const voice = brand['voice'] as { proofPoints: string[]; ctas: string[] };
   const client = sites.find((s) => s.kind === 'client' && s.captured) ?? null;
   const own = sites.find((s) => s.kind === 'own' && s.captured) ?? null;
-  const withQuote = sites.find((s) => s.captured && s.sections.includes('testimonials')) ?? null;
+  const withQuote = sites.find((s) => s.kind === 'own' && s.captured && s.sections.includes('testimonials')) ?? null;
   const days: PlanDay[] = [
     { slot: 'mon', template: 'list', subject: 'Four things a dated website costs a small business', site: null, reason: 'default rotation' },
     { slot: 'tue', template: 'stat', subject: voice.proofPoints[2] ?? 'A proof point', site: null, reason: 'default rotation' },
     { slot: 'wed', template: client ? 'screenshot' : own ? 'screenshot' : 'list', subject: client ? `Recent work: ${client.name}` : own ? 'How we build' : 'What a fast site feels like', site: (client ?? own)?.slug ?? null, reason: 'default rotation' },
     withQuote
-      ? { slot: 'thu', template: 'quote', subject: `A testimonial from ${withQuote.name}`, site: withQuote.slug, reason: 'testimonials section captured' }
+      ? { slot: 'thu', template: 'quote', subject: 'A client testimonial about us', site: withQuote.slug, reason: 'our testimonials section is captured' }
       : { slot: 'thu', template: 'stat', subject: voice.proofPoints[3] ?? 'Reply time', site: null, reason: 'no testimonials captured' },
     { slot: 'fri', template: 'list', subject: 'What to ask before hiring a web designer', site: null, reason: 'default rotation' },
   ];
@@ -121,9 +121,10 @@ export async function planWeek(weekOf: string, log: (s: string) => void = () => 
 Templates:
 - list: four punchy one-word lines plus a short verdict. Good for pain points, checklists, contrasts.
 - stat: one big number, a 3-5 word claim, a kicker. Use the studio's real proof points only: ${JSON.stringify(voice['proofPoints'])}.
-- quote: a client testimonial. ONLY allowed for a site whose captured sections include "testimonials"; the copywriter will quote it verbatim from the screenshot.
+- quote: a testimonial ABOUT THE STUDIO from one of its own clients. ONLY allowed with a site of kind "own" whose captured sections include "testimonials" (that is where the studio's client reviews live). Never use a client site's reviews: those are the client's customers talking about the client, not about us.
 - screenshot: a headline with one accent word over a crop of a real site. Needs a captured site.
 
+Every post is about what the studio does: its work (client sites as examples of our craft), its results (proof points), its clients' words about it. Never make a post about what a client's customers think of the client.
 Rules: vary templates across the week (no template three times, no two in a row), spread sites out, prefer sites not used recently. Sites of kind "own" are the studio's own site: posts about them speak in the first person and never present them as a client or attach client proof points. Client sites with permissionToName=false must stay anonymous in the subject. Keep subjects concrete and specific to the site or proof point. Return only JSON.`;
   const user = `Week of ${weekOf}.\n\nSites:\n${JSON.stringify(sites, null, 1)}\n\nRecent posts (avoid repeating):\n${JSON.stringify(recent, null, 1)}`;
   const r = await askJson<{ days: PlanDay[] }>({ system, messages: [{ role: 'user', content: user }], schema: SCHEMA, effort: 'medium', maxTokens: 2048 });
@@ -135,7 +136,7 @@ Rules: vary templates across the week (no template three times, no two in a row)
     const site = d.site && known.has(d.site) ? d.site : null;
     const sum = site ? sites.find((s) => s.slug === site) : null;
     let template = d.template;
-    if (template === 'quote' && !(sum && sum.sections.includes('testimonials'))) template = 'stat';
+    if (template === 'quote' && !(sum && sum.kind === 'own' && sum.sections.includes('testimonials'))) template = 'stat';
     if (template === 'screenshot' && !(sum && sum.captured)) template = 'list';
     return { ...d, slot, site, template };
   });

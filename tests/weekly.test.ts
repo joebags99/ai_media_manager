@@ -38,6 +38,7 @@ const fakeAsk: Ask = async <T,>(call: JsonCall) => {
 beforeAll(async () => {
   useDb(path.join(await mkdtemp(path.join(tmpdir(), 'wk-')), 'test.db'));
   await captureSite('sample-local', { log: () => {} });
+  await captureSite('sample-own', { log: () => {} });
   const plan: Plan = {
     weekOf: '2026-11-02',
     createdAt: new Date().toISOString(),
@@ -46,7 +47,7 @@ beforeAll(async () => {
       { slot: 'mon', template: 'list', subject: 'Pain points', site: null, reason: 't' },
       { slot: 'tue', template: 'stat', subject: 'Inquiries', site: null, reason: 't' },
       { slot: 'wed', template: 'screenshot', subject: 'Recent work', site: 'sample-local', reason: 't' },
-      { slot: 'thu', template: 'quote', subject: 'Testimonial', site: 'sample-local', reason: 't' },
+      { slot: 'thu', template: 'quote', subject: 'Testimonial', site: 'sample-own', reason: 't' },
       { slot: 'fri', template: 'list', subject: 'Checklist', site: null, reason: 't' },
     ],
   };
@@ -78,6 +79,11 @@ describe('weekly run', () => {
     const r = await runWeekly({ weekOf: '2026-11-02', ask: fakeAsk, log: () => {} });
     expect(r.created).toHaveLength(0);
   }, 60_000);
+
+  it('refuses a quote draft from a client site', async () => {
+    const { generateContent } = await import('../src/generate.js');
+    await expect(generateContent({ weekOf: '2026-11-02', day: { slot: 'thu', template: 'quote', subject: 'x', site: 'sample-local', reason: '' } }, { ask: fakeAsk })).rejects.toThrow(/own sites/);
+  });
 
   it('stops at the cost ceiling', async () => {
     const r = await runWeekly({ weekOf: '2026-11-02', ask: fakeAsk, log: () => {}, force: true, costCeilingUsd: 0.12 });

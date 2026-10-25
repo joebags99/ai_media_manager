@@ -4,5 +4,5 @@
   "industry": "web design",
   "kind": "own",
   "permissionToName": false,
-  "recipe": { "sections": [ { "name": "hero", "selector": ".hero" } ] }
+  "recipe": { "sections": [ { "name": "hero", "selector": ".hero" }, { "name": "testimonials", "selector": ".row" } ] }
 }

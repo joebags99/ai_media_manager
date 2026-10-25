@@ -2,11 +2,15 @@
 // reject land here in M4.
 import type { Express } from 'express';
 import path from 'node:path';
-import { listDrafts, getDraft, listRuns, nextWeekOf, SLOTS, type Draft, type Slot } from '../db.js';
+import { listDrafts, getDraft, listRuns, nextWeekOf, updateDraft, SLOTS, type Draft, type Slot } from '../db.js';
 import { planWeek, readPlan, writePlan, siteSummaries, type Plan, type PlanDay } from '../plan.js';
 import { runWeekly, renderDraftRow } from '../weekly.js';
 import { startJob } from '../jobs.js';
 import { hasApiKey } from '../claude.js';
+import { readManifest, siteDir } from '../capture.js';
+
+import { loadBrand } from '../render.js';
+import { validateContent } from '../validate.js';
 import { esc } from './html.js';
 import type { DraftContent } from '../validate.js';
 
@@ -19,6 +23,63 @@ const DAY_NAMES: Record<Slot, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'W
 const statusColor: Record<string, string> = { pending: 'var(--aegean)', revising: 'var(--purple)', approved: '#2e7d32', scheduled: '#2e7d32', rejected: 'var(--ash)', posted: '#2e7d32', error: '#B4332B' };
 const badge = (s: string) => `<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;color:#fff;background:${statusColor[s] ?? 'var(--ash)'}">${esc(s)}</span>`;
 const renderUrl = (p: string | null) => (p ? `/renders/${path.basename(p)}` : null);
+
+/** Crop adjuster for drafts that use a screenshot: pick the shot, type a region, see it boxed, re-render. */
+async function cropEditor(d: Draft, c: DraftContent): Promise<string> {
+  if (!d.site) return '';
+  const m = await readManifest(d.site);
+  if (!m) return '';
+  const canCrop = d.template === 'screenshot' || d.template === 'stat';
+  if (!canCrop) return '';
+  const shots = m.shots;
+  const current = c.crop?.screenshot && shots.find((s) => s.file === c.crop.screenshot) ? c.crop.screenshot : shots[0]?.file ?? '';
+  const [x, y, w, h] = c.crop?.region ?? [0, 0, 0, 0];
+  const whole = !c.crop?.region;
+  const dims = JSON.stringify(Object.fromEntries(shots.map((s) => [s.file, [s.width, s.height]])));
+  const n = (name: string, v: number) => `<label>${name} <input name="${name}" type="number" min="0" value="${v}" style="width:90px;padding:4px;font:inherit"></label>`;
+  return `<h2>Crop</h2>
+  <form method="post" action="/drafts/${d.id}/crop" class="card" id="cropForm">
+    <div class="row">
+      <label>Screenshot <select name="screenshot">${d.template === 'stat' ? '<option value="">none (plain ink)</option>' : ''}${shots.map((s) => `<option value="${esc(s.file)}" ${s.file === current && c.crop?.screenshot ? 'selected' : ''}>${esc(s.file)} (${s.width}×${s.height})</option>`).join('')}</select></label>
+      <label>Treatment <select name="treatment"><option ${c.crop?.treatment !== 'dimmed' ? 'selected' : ''}>framed</option><option ${c.crop?.treatment === 'dimmed' ? 'selected' : ''}>dimmed</option></select></label>
+      <label><input type="checkbox" name="whole" ${whole ? 'checked' : ''}> whole image</label>
+      ${n('x', x)} ${n('y', y)} ${n('w', w)} ${n('h', h)}
+      <button>Save crop and re-render</button>
+    </div>
+    <div id="cropPreview" style="position:relative;display:inline-block;margin-top:12px;max-width:100%">
+      <img id="cropImg" src="" alt="" style="max-width:720px;display:block">
+      <div id="cropBox" style="position:absolute;border:3px solid var(--terracotta);box-shadow:0 0 0 9999px rgba(21,19,26,.55);pointer-events:none"></div>
+    </div>
+    <p class="muted">Region is in the screenshot's own pixels. Drag isn't supported yet; type numbers and watch the box. Full width (x=0, w=image width) usually looks best in the frame.</p>
+  </form>
+  <script>
+    (() => {
+      const dims = ${dims};
+      const f = document.getElementById('cropForm');
+      const img = document.getElementById('cropImg');
+      const box = document.getElementById('cropBox');
+      const get = (k) => f.elements[k];
+      function draw() {
+        const file = get('screenshot').value;
+        const wrap = document.getElementById('cropPreview');
+        if (!file) { wrap.style.display = 'none'; return; }
+        wrap.style.display = 'inline-block';
+        const src = '/screenshots/${esc(d.site)}/' + file;
+        if (!img.src.endsWith(src)) img.src = src;
+        const [W, H] = dims[file] || [1, 1];
+        const whole = get('whole').checked;
+        for (const k of ['x', 'y', 'w', 'h']) get(k).disabled = whole;
+        if (whole && get('w').value == 0) { get('w').value = W; get('h').value = H; }
+        const scale = img.clientWidth / W;
+        const x = whole ? 0 : +get('x').value, y = whole ? 0 : +get('y').value, w = whole ? W : +get('w').value, h = whole ? H : +get('h').value;
+        Object.assign(box.style, { left: x * scale + 'px', top: y * scale + 'px', width: w * scale + 'px', height: h * scale + 'px' });
+      }
+      f.addEventListener('input', draw);
+      img.addEventListener('load', draw);
+      draw();
+    })();
+  </script>`;
+}
 
 export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void {
   // ---- Drafts list -----------------------------------------------------------------
@@ -85,11 +146,45 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
           <div>${pt ? `<a href="${pt}" target="_blank"><img src="${pt}?v=${d.version}" alt="portrait" style="max-width:360px"></a>` : ''}<p class="muted">1080×1350 · instagram</p></div>
         </div>
         ${d.template === 'quote' ? '<div class="warn">Quote template: check the quote and name against the testimonials screenshot before approving.</div>' : ''}
+        ${await cropEditor(d, c)}
         <h2>Captions</h2><div class="grid">${caption('instagram')}${caption('facebook')}${caption('linkedin')}${caption('googlebusiness')}</div>
         <h2>Slots</h2><pre class="muted">${esc(JSON.stringify({ slots: c.slots, crop: c.crop }, null, 2))}</pre>
         <div class="row"><form method="post" action="/drafts/${d.id}/rerender"><button class="secondary">Re-render</button></form><a class="btn secondary" href="/?week=${d.weekOf}">Back</a></div>
         <details style="margin-top:18px"><summary class="muted">Claude conversation (${ctx.calls?.length ?? 0} call(s))</summary><pre class="muted" style="max-height:500px;overflow:auto">${esc(JSON.stringify(JSON.parse(d.generationContext), null, 2))}</pre></details>`;
       res.send(page('Draft', body, '/'));
+    }),
+  );
+
+  app.post(
+    '/drafts/:id/crop',
+    wrap(async (req, res) => {
+      const d = getDraft(String(req.params['id']));
+      if (!d || !d.site) {
+        res.status(404).send('unknown draft');
+        return;
+      }
+      const b = req.body as Record<string, string>;
+      const c = JSON.parse(d.contentJson) as DraftContent;
+      const m = await readManifest(d.site);
+      const num = (k: string) => Math.round(Number(b[k]));
+      const whole = b['whole'] === 'on';
+      c.crop = {
+        screenshot: b['screenshot'] || null,
+        region: whole || !b['screenshot'] ? null : [num('x'), num('y'), num('w'), num('h')],
+        treatment: b['treatment'] === 'dimmed' ? 'dimmed' : 'framed',
+      };
+      const dims = Object.fromEntries((m?.shots ?? []).map((s) => [s.file, { width: s.width, height: s.height }]));
+      const errors = validateContent(await loadBrand(), c, dims, d.template).filter((e) => /crop/.test(e));
+      if (errors.length) {
+        res.status(400).send(page('Crop', `<h1>Crop not saved</h1><div class="warn">${esc(errors.join('; '))}</div><a class="btn" href="/drafts/${d.id}">Back</a>`, '/'));
+        return;
+      }
+      const updated = updateDraft(d.id, { contentJson: JSON.stringify(c) });
+      const job = startJob('render', `Re-render ${d.slot} ${d.weekOf}`, async (log) => {
+        const r = await renderDraftRow(updated);
+        log(`wrote ${path.basename(r.renderSquare!)} and ${path.basename(r.renderPortrait!)}`);
+      });
+      res.redirect(`/jobs/${job.id}?next=/drafts/${d.id}`);
     }),
   );
 

@@ -59,8 +59,8 @@ const RESPONSE_SCHEMA = (template: string, slots: string[]) => ({
 const TEMPLATE_NOTES: Record<string, string> = {
   list: 'Four one-word lines (line1-line4), each a single word with a period, e.g. "Slow." Then a verdict of 3-5 words that resolves them. The four words are set in brand accent colors, the verdict in white.',
   stat: 'number: a short figure like "40%" or "24h" taken from the proof points. claim: 3-5 words in white. kicker: a short CTA or qualifier in orange caps. Set crop.treatment "dimmed" with a screenshot to put a dim site behind the number, or leave crop.screenshot null for a plain ink background.',
-  quote: 'quote: the testimonial copied verbatim from the testimonials screenshot (under 30 words; trim with care, never invent). name: the reviewer\'s name exactly as shown (first name + initial is fine). business: the client business name, or its industry if the client must stay anonymous.',
-  screenshot: 'headline: 3-5 words, one of which is accentWord (copied exactly from the headline) and set in orange. crop: pick the screenshot and a region [x, y, w, h] that shows the most convincing part of the site; "framed" puts it in a browser frame, "dimmed" uses it as a dim full-bleed background.',
+  quote: 'The testimonial is a client of OURS talking about OUR work, copied verbatim from the testimonials screenshot of our own site (under 30 words; trim to whole sentences, never invent or paraphrase). name: the reviewer\'s name exactly as shown (first name + initial is fine). business: their business as shown, or their industry if not shown.',
+  screenshot: 'headline: 3-5 words, one of which is accentWord (copied exactly from the headline) and set in orange. crop: pick the screenshot and a region [x, y, w, h] showing the most convincing part of the site; "framed" puts it in a browser frame, "dimmed" uses it as a dim full-bleed background.',
 };
 
 export function buildSystemPrompt(brand: Brand, template: string): string {
@@ -94,6 +94,15 @@ SITES
 - A site of kind "own" is the studio's own: write in the first person ("our site", "we build"), never call it a client, never attach client proof points to it.
 - A client site with permissionToName=false must not be named anywhere; describe it by industry ("a local tile installer").
 - Screenshots are provided as images with filenames. crop.screenshot must be one of those filenames; crop.region is in that image's pixels and must fit inside it.
+
+CROPS (framed treatment)
+- Use the full width of the screenshot: x = 0 and w = the image width, unless a narrower crop is clearly better.
+- Choose y and h so every text block and image inside the region is whole: never cut through a headline, paragraph, button or photo. Leave 24-40px of breathing room above and below.
+- Keep the region's aspect ratio between 4:3 and 2:1 so it fits the frame at a readable size; for a tall section, pick its most convincing part rather than squeezing all of it in.
+- Prefer the hero or a section with a clear headline and one strong image.
+
+EVERY POST IS ABOUT US
+- Posts show what ${brand.name} does: our work (client sites as examples of our craft, in our words), our results (the proof points), our clients' words about us. Never make a post about what a client's customers think of the client.
 
 Return only the JSON object.`;
 }
@@ -178,6 +187,10 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
     site = await loadSite(day.site);
     manifest = await readManifest(day.site);
     if (!manifest) throw new Error(`Site "${day.site}" has no capture yet`);
+  }
+  if (template === 'quote') {
+    if (!site || site.kind !== 'own') throw new Error('quote template needs one of our own sites (testimonials about us), not a client site');
+    if (!manifest!.shots.some((s) => s.section === 'testimonials')) throw new Error(`quote template needs a captured "testimonials" section on ${site.slug}`);
   }
   const shots = manifest ? pickShots(manifest, template) : [];
   const dims: ShotDims = Object.fromEntries(shots.map((s) => [s.file, { width: s.width, height: s.height }]));

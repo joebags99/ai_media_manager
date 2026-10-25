@@ -1,0 +1,112 @@
+// claude.ts: the one place the Anthropic SDK is called. Every call returns strict JSON
+// validated against a JSON schema (structured outputs), and the full request/response
+// pair so callers can store it on the draft for replay and audit.
+//
+// Checked against docs.claude.com / @anthropic-ai/sdk 1.x on 2026-10-25:
+//   - model: claude-opus-5-5 (current default; thinking always on, effort controls depth)
+//   - structured JSON: output_config.format = { type: "json_schema", schema }
+//   - images: { type: "image", source: { type: "base64", media_type, data } }
+//   - refusals: stop_reason "refusal"; server-side fallbacks via beta
+//     "server-side-fallback-2026-07-01" + fallbacks: "default"
+
+import Anthropic from '@anthropic-ai/sdk';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+export const MODEL = 'claude-opus-5-5';
+// $/MTok from the current price list, used for the per-draft cost log.
+const PRICE = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
+
+export type Effort = 'low' | 'medium' | 'high';
+export type ContentBlock = Anthropic.Beta.BetaContentBlockParam;
+export type MessageParam = Anthropic.Beta.BetaMessageParam;
+
+export interface JsonCall {
+  system: string;
+  messages: MessageParam[];
+  schema: Record<string, unknown>;
+  effort?: Effort;
+  maxTokens?: number;
+}
+
+export interface JsonResult<T> {
+  data: T;
+  /** Exactly what was sent, minus image bytes (replaced by their filename). */
+  request: Record<string, unknown>;
+  response: Anthropic.Beta.BetaMessage;
+  costUsd: number;
+  model: string;
+}
+
+let client: Anthropic | undefined;
+function getClient(): Anthropic {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set');
+  return (client ??= new Anthropic());
+}
+
+export function hasApiKey(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
+export async function imageBlock(file: string): Promise<ContentBlock> {
+  const ext = path.extname(file).slice(1).toLowerCase();
+  const media_type = (ext === 'jpg' ? 'image/jpeg' : `image/${ext}`) as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+  return { type: 'image', source: { type: 'base64', media_type, data: (await readFile(file)).toString('base64') } };
+}
+
+export function estimateCost(usage: Anthropic.Beta.BetaUsage): number {
+  const m = 1_000_000;
+  return (
+    (usage.input_tokens * PRICE.input +
+      usage.output_tokens * PRICE.output +
+      (usage.cache_read_input_tokens ?? 0) * PRICE.cacheRead +
+      (usage.cache_creation_input_tokens ?? 0) * PRICE.cacheWrite) /
+    m
+  );
+}
+
+/** Strip base64 image data so the stored request stays small and replayable. */
+function redactImages(messages: MessageParam[]): unknown {
+  return messages.map((m) => ({
+    role: m.role,
+    content:
+      typeof m.content === 'string' || !m.content
+        ? m.content
+        : m.content.map((b) => (b.type === 'image' && b.source.type === 'base64' ? { type: 'image', source: { type: 'base64', media_type: b.source.media_type, data: `<${b.source.data.length} base64 chars>` } } : b)),
+  }));
+}
+
+export async function askJson<T>(call: JsonCall): Promise<JsonResult<T>> {
+  const params: Anthropic.Beta.MessageCreateParamsNonStreaming = {
+    model: MODEL,
+    max_tokens: call.maxTokens ?? 4096,
+    system: [{ type: 'text', text: call.system, cache_control: { type: 'ephemeral' } }],
+    messages: call.messages,
+    output_config: { effort: call.effort ?? 'medium', format: { type: 'json_schema', schema: call.schema } },
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+  };
+  const response = await getClient().beta.messages.create(params);
+  if (response.stop_reason === 'refusal') {
+    throw new Error(`Claude declined the request${response.stop_details?.explanation ? `: ${response.stop_details.explanation}` : ''}`);
+  }
+  if (response.stop_reason === 'max_tokens') throw new Error('Claude hit max_tokens before finishing the JSON');
+  const text = response.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  let data: T;
+  try {
+    data = JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Claude returned non-JSON: ${text.slice(0, 200)}`);
+  }
+  const { messages: _m, system: _s, ...rest } = params;
+  return {
+    data,
+    request: { ...rest, system: call.system, messages: redactImages(call.messages) },
+    response,
+    costUsd: estimateCost(response.usage),
+    model: response.model,
+  };
+}

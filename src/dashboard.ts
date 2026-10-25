@@ -8,7 +8,11 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { DASHBOARD_PORT, FIXTURES_DIR, RENDERS_DIR, SCREENSHOTS_DIR, TEST_MODE } from './config.js';
 import { captureSite, readManifest, type Manifest } from './capture.js';
-import { listSites, loadSite, saveSite, type Site } from './sites.js';
+import { listSites, loadSite, saveSite, slugify, type Site } from './sites.js';
+import { inspectSite, suggestRecipe } from './inspect.js';
+import { hasApiKey } from './claude.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { siteDir } from './capture.js';
 import { renderDraft, type RenderInput } from './render.js';
 import { getJob, recentJobs, startJob } from './jobs.js';
 import { esc, jobView, layout } from './dashboard/html.js';
@@ -169,12 +173,58 @@ export function createApp(): express.Express {
     };
   };
 
+  const quickForm = (v: { name?: string; url?: string; industry?: string; permissionToName?: boolean }, error?: string) => `<h1>Add a site</h1>
+    ${error ? `<div class="warn">${esc(error)}</div>` : ''}
+    <form method="post" class="card" style="max-width:640px">
+      <label style="display:block;margin:12px 0"><b>Name</b><br><input name="name" value="${esc(v.name ?? '')}" required style="width:100%;padding:8px;font:inherit"></label>
+      <label style="display:block;margin:12px 0"><b>URL</b><br><input type="url" name="url" value="${esc(v.url ?? 'https://')}" required style="width:100%;padding:8px;font:inherit"></label>
+      <label style="display:block;margin:12px 0"><b>Industry</b><br><input name="industry" value="${esc(v.industry ?? '')}" placeholder="tile installation" style="width:100%;padding:8px;font:inherit"></label>
+      <label style="display:block;margin:12px 0"><input type="checkbox" name="permissionToName" ${v.permissionToName ? 'checked' : ''}> <b>Client has agreed to be named in posts</b></label>
+      <p class="muted">On save, the page is loaded once and its main sections are picked ${hasApiKey() ? 'by Claude' : 'by a heuristic (no ANTHROPIC_API_KEY set)'}. You can adjust the result afterwards with Edit recipe.</p>
+      <div class="row"><button>Save and analyze</button><a class="btn secondary" href="/sites">Cancel</a><a class="muted" href="/sites/new/manual">Set up the recipe by hand instead</a></div>
+    </form>`;
+
   app.get('/sites/new', (_req, res) => {
-    res.send(page('Add a site', siteForm({}), '/sites'));
+    res.send(page('Add a site', quickForm({}), '/sites'));
   });
 
   app.post(
     '/sites/new',
+    wrap(async (req, res) => {
+      const b = req.body as Record<string, unknown>;
+      const v = { name: String(b['name'] ?? '').trim(), url: String(b['url'] ?? '').trim(), industry: String(b['industry'] ?? '').trim(), permissionToName: b['permissionToName'] === 'on' };
+      const slug = slugify(v.name);
+      if (!v.name || !slug) {
+        res.status(400).send(page('Add a site', quickForm(v, 'Site needs a name'), '/sites'));
+        return;
+      }
+      try {
+        new URL(v.url);
+      } catch {
+        res.status(400).send(page('Add a site', quickForm(v, `"${v.url}" is not a valid URL`), '/sites'));
+        return;
+      }
+      const job = startJob('analyze', `Analyze ${v.name}`, async (log) => {
+        log(`loading ${v.url}`);
+        const ins = await inspectSite(v.url);
+        log(`found ${ins.candidates.length} candidate blocks${ins.dismiss.length ? `, ${ins.dismiss.length} dismiss button(s)` : ''}`);
+        const sug = await suggestRecipe(v, ins, log);
+        const site = await saveSite({ ...v, slug, recipe: sug.recipe });
+        await mkdir(siteDir(slug), { recursive: true });
+        await writeFile(path.join(siteDir(slug), 'recipe-suggestion.json'), JSON.stringify({ at: new Date().toISOString(), source: sug.source, notes: sug.notes, inspection: ins, claude: sug.claude ?? null }, null, 2));
+        log(`saved sites/${slug}.json with ${sug.recipe.sections.length} section(s): ${sug.recipe.sections.map((s) => s.name).join(', ')}`);
+        return site;
+      });
+      res.redirect(`/jobs/${job.id}?next=/sites/${slug}?suggested=1`);
+    }),
+  );
+
+  app.get('/sites/new/manual', (_req, res) => {
+    res.send(page('Add a site', siteForm({}), '/sites'));
+  });
+
+  app.post(
+    '/sites/new/manual',
     wrap(async (req, res) => {
       const input = siteFromForm(req.body as Record<string, unknown>);
       try {
@@ -213,6 +263,17 @@ export function createApp(): express.Express {
     wrap(async (req, res) => {
       const slug = String(req.params['slug']);
       const m: Manifest | null = await readManifest(slug);
+      const suggested = req.query['suggested'] === '1';
+      let suggestion: { source: string; notes: string } | null = null;
+      try {
+        suggestion = JSON.parse(await readFile(path.join(siteDir(slug), 'recipe-suggestion.json'), 'utf8')) as { source: string; notes: string };
+      } catch {
+        // none
+      }
+      const site = await loadSite(slug);
+      const banner = suggested && suggestion
+        ? `<div class="warn">Recipe suggested by <b>${esc(suggestion.source)}</b>: ${esc(suggestion.notes)}<br><span class="muted">Sections: ${site.recipe.sections.map((x) => `<code>${esc(x.name)}</code> = <code>${esc(x.selector)}</code>`).join(' · ')}</span><br>Hit <b>Capture now</b> to check it, or <a href="/sites/${esc(slug)}/edit">Edit recipe</a>.</div>`
+        : '';
       const body = m
         ? `${m.warnings.map((w) => `<div class="warn">${esc(w)}</div>`).join('')}
            <div class="grid">${m.shots
@@ -226,9 +287,9 @@ export function createApp(): express.Express {
       res.send(
         page(
           slug,
-          `<h1>${esc(m?.name ?? slug)}</h1>
+          `<h1>${esc(site.name)}</h1>
           <div class="row"><form method="post" action="/sites/${esc(slug)}/capture"><button>Capture now</button></form><a class="btn secondary" href="/sites/${esc(slug)}/edit">Edit recipe</a><a class="btn secondary" href="/sites">Back</a></div>
-          <div style="margin-top:18px">${body}</div>`,
+          <div style="margin-top:18px">${banner}${body}</div>`,
           '/sites',
         ),
       );

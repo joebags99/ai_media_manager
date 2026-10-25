@@ -178,7 +178,8 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
   const log = opts.log ?? (() => {});
   const brand = await loadBrand();
   const { day } = input;
-  const template = day.template;
+  const template = day.template as Exclude<PlanDay['template'], 'none'>;
+  if (day.template === 'none') throw new Error(`${day.slot} is planned as no post`);
   const slots = brand.templates[template]!.slots.filter((s) => s !== 'crop');
 
   let site: Site | null = null;
@@ -195,7 +196,9 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
   const shots = manifest ? pickShots(manifest, template) : [];
   const dims: ShotDims = Object.fromEntries(shots.map((s) => [s.file, { width: s.width, height: s.height }]));
 
-  const lines = [`Week of ${input.weekOf}, ${day.slot.toUpperCase()} post.`, `Subject: ${day.subject}`];
+  const lines = [`Week of ${input.weekOf}, ${day.slot.toUpperCase()} ${day.date ?? ''} post.`, `Subject: ${day.subject}`];
+  if (day.holiday) lines.push(`Holiday: today is ${day.holiday}. Acknowledge it naturally in the copy and captions (one light touch, not the whole post). The image will be rendered in seasonal colors.`);
+  else if (day.theme) lines.push(`Season: the image will be rendered in "${day.theme}" seasonal colors; the copy may nod to the season but need not.`);
   if (site) {
     lines.push(`Site: ${site.kind === 'own' ? `OUR OWN site, ${site.name}` : site.permissionToName ? `client "${site.name}"` : `an anonymous client (${site.industry || 'small business'}; do not name them)`} (${site.industry}).`);
     lines.push(`Screenshots (filename: section, viewport, width x height):`);
@@ -222,7 +225,7 @@ export async function generateContent(input: GenerateInput, opts: GenerateOption
     messages.push({ role: 'assistant', content: JSON.stringify(r.data) });
     if (errors.length === 0) {
       log(`${day.slot}: valid on attempt ${attempt} ($${r.costUsd.toFixed(4)})`);
-      return { content: r.data, context: messages, calls, costUsd: calls.reduce((a, c) => a + c.costUsd, 0), site };
+      return { content: { ...r.data, theme: day.theme ?? null }, context: messages, calls, costUsd: calls.reduce((a, c) => a + c.costUsd, 0), site };
     }
     log(`${day.slot}: attempt ${attempt} failed validation: ${errors.join('; ')}`);
     if (attempt === 2) throw new Error(`Draft failed validation twice: ${errors.join('; ')}`);

@@ -37,6 +37,8 @@ export interface RenderInput {
   bg?: string;
   /** Directory that crop.screenshot is resolved against. */
   screenshotDir?: string;
+  /** Seasonal theme name from brand.json "seasonal.themes" (e.g. "halloween"); accents only. */
+  theme?: string | null;
 }
 
 export interface RenderResult {
@@ -59,7 +61,15 @@ export interface Brand {
   fonts: Record<'display' | 'body' | 'eyebrow', FontSpec>;
   canvas: { square: [number, number]; portrait: [number, number]; paddingPct: number; rulePx: number; iconPct: number };
   templates: Record<string, { slots: string[]; align: string; bg: string }>;
+  seasonal?: { themes: Record<string, { accentOrder?: string[]; colors?: Record<string, string> }> };
   [key: string]: unknown;
+}
+
+/** Brand with a seasonal theme's accent overrides applied. Unknown theme = brand as is. */
+export function applyTheme(brand: Brand, theme: string | null | undefined): Brand {
+  const t = theme ? brand.seasonal?.themes[theme] : undefined;
+  if (!t) return brand;
+  return { ...brand, colors: { ...brand.colors, ...(t.colors ?? {}) }, accentOrder: t.accentOrder ?? brand.accentOrder };
 }
 
 export async function loadBrand(): Promise<Brand> {
@@ -276,7 +286,7 @@ export interface RenderOptions {
 }
 
 export async function renderDraft(input: RenderInput, opts: RenderOptions = {}): Promise<RenderResult> {
-  const brand = await loadBrand();
+  const brand = applyTheme(await loadBrand(), input.theme);
   validateInput(brand, input);
   const outDir = opts.outDir ?? RENDERS_DIR;
   await mkdir(outDir, { recursive: true });

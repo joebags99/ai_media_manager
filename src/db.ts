@@ -7,8 +7,15 @@ import path from 'node:path';
 import { DATA_DIR, DB_PATH, ORG_ID } from './config.js';
 
 export type DraftStatus = 'pending' | 'revising' | 'approved' | 'scheduled' | 'rejected' | 'posted' | 'error';
-export type Slot = 'mon' | 'tue' | 'wed' | 'thu' | 'fri';
-export const SLOTS: Slot[] = ['mon', 'tue', 'wed', 'thu', 'fri'];
+export type Slot = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+/** Week of Monday through Sunday. Saturday and Sunday are normally empty unless a holiday falls there. */
+export const SLOTS: Slot[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+export const SLOT_OFFSET: Record<Slot, number> = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+export function slotDate(weekOf: string, slot: Slot): string {
+  const d = new Date(`${weekOf}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + SLOT_OFFSET[slot]);
+  return d.toISOString().slice(0, 10);
+}
 
 export interface Draft {
   id: string;
@@ -153,7 +160,7 @@ export function listDrafts(opts: { weekOf?: string; status?: DraftStatus | Draft
     where.push('version = (SELECT MAX(version) FROM drafts d2 WHERE d2.orgId = drafts.orgId AND d2.weekOf = drafts.weekOf AND d2.slot = drafts.slot)');
   }
   return openDb()
-    .prepare(`SELECT * FROM drafts WHERE ${where.join(' AND ')} ORDER BY weekOf DESC, CASE slot WHEN 'mon' THEN 1 WHEN 'tue' THEN 2 WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 ELSE 5 END, version DESC`)
+    .prepare(`SELECT * FROM drafts WHERE ${where.join(' AND ')} ORDER BY weekOf DESC, CASE slot WHEN 'mon' THEN 1 WHEN 'tue' THEN 2 WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 WHEN 'fri' THEN 5 WHEN 'sat' THEN 6 ELSE 7 END, version DESC`)
     .all(params) as Draft[];
 }
 

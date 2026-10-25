@@ -15,6 +15,8 @@ export interface DraftContent {
   captions: Record<'instagram' | 'facebook' | 'linkedin' | 'googlebusiness', string>;
   hashtags: Record<'instagram' | 'facebook' | 'linkedin', string[]>;
   rationale: string;
+  /** Seasonal theme applied at render time (set from the plan, not by Claude). */
+  theme?: string | null;
 }
 
 /** Slots the 3-5 word headline rule applies to (spec change approved 2026-10-24). */

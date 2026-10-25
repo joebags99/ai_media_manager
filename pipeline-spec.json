@@ -77,7 +77,7 @@
       },
       "plan": {
         "file": "src/plan.ts",
-        "does": "Ask Claude for the week: one template + subject (+ optional site) per weekday, given brand.json, the sites (kind, captured sections) and recent drafts. Rules: vary templates, quote only with a captured testimonials section, screenshot only with a captured site. Reviewer edits the plan in the dashboard before generation.",
+        "does": "Ask Claude for the week (Monday to Sunday): one template + subject (+ optional site) per day, given brand.json, the sites (kind, captured sections), recent drafts and the US holidays in that week (src/holidays.ts). Weekends are 'none' unless a holiday worth posting on falls there; sombre holidays become 'none'. Holiday and run-up days carry a seasonal theme (brand.json seasonal.themes) that overrides accent colors at render time. Rules: vary templates, quote only with a captured testimonials section, screenshot only with a captured site. Reviewer edits the plan in the dashboard before generation.",
         "output": "data/calendar/<weekOf>.json"
       },
       "generate": {
@@ -131,7 +131,7 @@
       "id": "uuid",
       "orgId": "string",
       "weekOf": "ISO date",
-      "slot": "mon|tue|wed|thu|fri",
+      "slot": "mon|tue|wed|thu|fri|sat|sun (weekends empty unless a holiday falls there)",
       "site": "slug or null",
       "template": "list|stat|quote|screenshot",
       "version": "int",

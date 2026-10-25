@@ -2,7 +2,7 @@
 import type { Express, Request, Response, RequestHandler } from 'express';
 import path from 'node:path';
 import { listDrafts, getDraft, listRuns, nextWeekOf, mondayOf, updateDraft, SLOTS, type Draft, type Slot } from '../db.js';
-import { planWeek, readPlan, writePlan, listPlannedWeeks, siteSummaries, type Plan, type PlanDay } from '../plan.js';
+import { planWeek, readPlan, writePlan, listPlannedWeeks, siteSummaries, dayContext, type Plan, type PlanDay } from '../plan.js';
 import { runWeekly, renderDraftRow } from '../weekly.js';
 import { startJob } from '../jobs.js';
 import { hasApiKey } from '../claude.js';
@@ -19,8 +19,8 @@ import { badge, empty, esc, notice, pageHead, section } from './html.js';
 type Page = (title: string, body: string, active: string) => string;
 type Wrap = (fn: (req: Request, res: Response) => Promise<void>) => RequestHandler;
 
-const TEMPLATES = ['list', 'stat', 'quote', 'screenshot'] as const;
-const DAY_NAMES: Record<Slot, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday' };
+const TEMPLATES = ['list', 'stat', 'quote', 'screenshot', 'none'] as const;
+const DAY_NAMES: Record<Slot, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
 const STATUS_HELP: Record<string, string> = {
   pending: 'Waiting for your review.',
   revising: 'Superseded by a newer version.',
@@ -39,7 +39,7 @@ function steps(weekOf: string | undefined, counts: Record<string, number>): stri
   const approved = counts['approved'] ?? 0;
   const s = (href: string, n: string, title: string, text: string) => `<a class="step" href="${href}"><span class="n">${n}</span><b>${title}</b><span>${text}</span></a>`;
   return `<div class="steps">
-    ${s(`/plan${weekOf ? `?week=${weekOf}` : ''}`, 'STEP 1', 'Plan', 'Claude proposes a template and subject per weekday. Edit, then run.')}
+    ${s(`/plan${weekOf ? `?week=${weekOf}` : ''}`, 'STEP 1', 'Plan', 'Claude proposes a template and subject per day, holidays included. Edit, then run.')}
     ${s('/jobs', 'STEP 2', 'Generate', 'The weekly run captures sites, writes copy, renders both sizes.')}
     ${s(`/${weekOf ? `?week=${weekOf}` : ''}`, 'STEP 3', 'Review', pending ? `${pending} draft(s) waiting. Approve, revise with feedback, or reject.` : 'Approve, revise with feedback, or reject each draft.')}
     ${s('/buffer', 'STEP 4', 'Publish', approved ? `${approved} approved and ready for Buffer.` : `Approved drafts go to Buffer${TEST_MODE ? ' (test mode: 60 days out)' : ''}.`)}
@@ -361,11 +361,22 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         return d.toISOString().slice(0, 10);
       };
       const drafted = listDrafts({ weekOf, latestOnly: true }).length;
-      const row = (day: PlanDay) => `<tr><td style="width:110px"><b>${DAY_NAMES[day.slot]}</b></td>
-        <td style="width:130px"><select name="template-${day.slot}">${TEMPLATES.map((t) => `<option ${t === day.template ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+      const row = (day: PlanDay) => {
+        const ctx = dayContext(weekOf, day.slot);
+        const weekend = day.slot === 'sat' || day.slot === 'sun';
+        const off = day.template === 'none';
+        return `<tr style="${off ? 'background:var(--marble)' : ''}"><td style="width:150px"><b>${DAY_NAMES[day.slot]}</b><div class="muted">${esc(ctx.date.slice(5))}</div>${ctx.holiday ? `<div style="margin-top:4px"><span class="badge" style="background:${ctx.holiday.theme ? 'var(--terracotta)' : 'var(--ash)'}">${esc(ctx.holiday.name)}</span></div>` : ctx.theme ? `<div class="hint" style="margin-top:4px">${esc(ctx.theme)} season</div>` : ''}</td>
+        <td style="width:130px"><select name="template-${day.slot}">${TEMPLATES.map((t) => `<option value="${t}" ${t === day.template ? 'selected' : ''}>${t === 'none' ? 'no post' : t}</option>`).join('')}</select></td>
         <td style="width:260px"><select name="site-${day.slot}"><option value="">none</option>${sites.map((s) => `<option value="${esc(s.slug)}" ${s.slug === day.site ? 'selected' : ''}>${esc(s.name)}${s.kind === 'own' ? ' (ours)' : ''}${s.captured ? '' : ' (not captured)'}</option>`).join('')}</select></td>
-        <td><input name="subject-${day.slot}" value="${esc(day.subject)}" style="width:100%">${day.reason ? `<div class="hint" style="margin-top:4px">${esc(day.reason)}</div>` : ''}</td></tr>`;
-      const days = plan?.days ?? SLOTS.map((slot) => ({ slot, template: 'list' as const, subject: '', site: null, reason: '' }));
+        <td><input name="subject-${day.slot}" value="${esc(day.subject)}" style="width:100%" placeholder="${weekend && !ctx.holiday ? 'Weekend: no post unless you want one' : ''}">${day.reason ? `<div class="hint" style="margin-top:4px">${esc(day.reason)}</div>` : ctx.holiday ? `<div class="hint" style="margin-top:4px">${esc(ctx.holiday.note)}</div>` : ''}</td></tr>`;
+      };
+      const days: PlanDay[] = SLOTS.map((slot) => {
+        const existing = plan?.days.find((d) => d.slot === slot);
+        if (existing) return existing;
+        const ctx = dayContext(weekOf, slot);
+        const weekend = slot === 'sat' || slot === 'sun';
+        return { slot, template: weekend && !ctx.holiday?.post ? 'none' : 'list', subject: '', site: null, reason: '' };
+      });
       const body =
         pageHead(
           'Plan the week',
@@ -384,7 +395,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         `<form method="post" action="/plan">
           <input type="hidden" name="weekOf" value="${esc(weekOf)}">
           <table><tr><th>Day</th><th>Template</th><th>Site</th><th>Subject</th></tr>${days.map(row).join('')}</table>
-          <p class="hint">quote needs our own site with a captured testimonials section; screenshot needs a captured site. Google Business only takes stat and list posts.</p>
+          <p class="hint">Saturday and Sunday are "no post" unless a holiday falls there. quote needs our own site with a captured testimonials section; screenshot needs a captured site. Google Business only takes stat and list posts. Posts on or just before a themed holiday render in that season's accent colors.</p>
           <div class="row"><button class="secondary">Save plan</button><button name="then" value="run" class="primary">Save and run weekly</button></div>
         </form>`;
       res.send(page('Plan', body, '/plan'));
@@ -409,12 +420,18 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
       const prev = await readPlan(weekOf);
       const days: PlanDay[] = SLOTS.map((slot) => {
         const old = prev?.days.find((d) => d.slot === slot);
+        const ctx = dayContext(weekOf, slot);
+        const template = (TEMPLATES as readonly string[]).includes(b[`template-${slot}`] ?? '') ? (b[`template-${slot}`] as PlanDay['template']) : 'none';
+        const subject = (b[`subject-${slot}`] ?? '').trim();
         return {
           slot,
-          template: (TEMPLATES as readonly string[]).includes(b[`template-${slot}`] ?? '') ? (b[`template-${slot}`] as PlanDay['template']) : 'list',
-          site: b[`site-${slot}`] || null,
-          subject: (b[`subject-${slot}`] ?? '').trim(),
-          reason: old && old.template === b[`template-${slot}`] && old.subject === (b[`subject-${slot}`] ?? '').trim() ? old.reason : 'edited by reviewer',
+          date: ctx.date,
+          template,
+          site: template === 'none' ? null : b[`site-${slot}`] || null,
+          subject: template === 'none' ? '' : subject,
+          reason: old && old.template === template && old.subject === subject ? old.reason : template === 'none' ? (old?.reason ?? '') : 'edited by reviewer',
+          holiday: ctx.holiday?.name ?? null,
+          theme: ctx.theme,
         };
       });
       const plan: Plan = { weekOf, createdAt: new Date().toISOString(), source: 'edited', days, claude: prev?.claude ?? null };

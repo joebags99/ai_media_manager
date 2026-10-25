@@ -182,5 +182,120 @@
       "#AIWorkflows",
       "#Ecommerce"
     ]
+  },
+  "seasonal": {
+    "_note": "Color overrides applied at render time on and around US holidays. Only accents change; ink, bone and marble stay so the ads still read as Daedabyte. Keys are theme names used in src/holidays.ts.",
+    "themes": {
+      "halloween": {
+        "accentOrder": [
+          "terracotta",
+          "purple",
+          "gold",
+          "aegean"
+        ],
+        "colors": {
+          "terracotta": "#FF7A1A",
+          "purple": "#8E44D6",
+          "gold": "#E0B23A",
+          "aegean": "#2C9A7A"
+        }
+      },
+      "christmas": {
+        "accentOrder": [
+          "terracotta",
+          "aegean",
+          "gold",
+          "purple"
+        ],
+        "colors": {
+          "terracotta": "#D6382F",
+          "aegean": "#2E7D4F",
+          "gold": "#D4B45A",
+          "purple": "#B38BD9"
+        }
+      },
+      "newyear": {
+        "accentOrder": [
+          "gold",
+          "purple",
+          "aegean",
+          "terracotta"
+        ],
+        "colors": {
+          "gold": "#E2C96A",
+          "purple": "#A678D1",
+          "aegean": "#1D8A99",
+          "terracotta": "#FC7645"
+        }
+      },
+      "valentine": {
+        "accentOrder": [
+          "terracotta",
+          "purple",
+          "gold",
+          "aegean"
+        ],
+        "colors": {
+          "terracotta": "#E0457B",
+          "purple": "#B46BD1",
+          "gold": "#E2A5B5"
+        }
+      },
+      "stpatricks": {
+        "accentOrder": [
+          "aegean",
+          "gold",
+          "terracotta",
+          "purple"
+        ],
+        "colors": {
+          "aegean": "#2E8B57",
+          "gold": "#D4B45A",
+          "terracotta": "#F08A3E"
+        }
+      },
+      "spring": {
+        "accentOrder": [
+          "purple",
+          "aegean",
+          "gold",
+          "terracotta"
+        ],
+        "colors": {
+          "purple": "#B59BE0",
+          "aegean": "#4FB3A9",
+          "gold": "#E6D27A",
+          "terracotta": "#F4A07C"
+        }
+      },
+      "patriotic": {
+        "accentOrder": [
+          "terracotta",
+          "aegean",
+          "gold",
+          "purple"
+        ],
+        "colors": {
+          "terracotta": "#C8352E",
+          "aegean": "#2B4C9B",
+          "gold": "#E6E1D3",
+          "purple": "#8FA3D9"
+        }
+      },
+      "autumn": {
+        "accentOrder": [
+          "terracotta",
+          "gold",
+          "purple",
+          "aegean"
+        ],
+        "colors": {
+          "terracotta": "#D9682B",
+          "gold": "#C9A24A",
+          "purple": "#8C4A2F",
+          "aegean": "#5B7F3E"
+        }
+      }
+    }
   }
 }

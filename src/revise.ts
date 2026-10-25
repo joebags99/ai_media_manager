@@ -74,7 +74,7 @@ export async function reviseDraft(id: string, feedback: string, opts: ReviseOpti
       site: prev.site,
       template,
       version: prev.version + 1,
-      contentJson: JSON.stringify(content),
+      contentJson: JSON.stringify({ ...content, theme: (JSON.parse(prev.contentJson) as DraftContent).theme ?? null }),
       generationContext: JSON.stringify({ plan: ctx.plan, messages: dehydrate(messages), calls }),
       costUsd: cost,
       feedback: text,

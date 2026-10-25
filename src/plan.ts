@@ -6,7 +6,8 @@ import { askJson, hasApiKey } from './claude.js';
 import { DATA_DIR } from './config.js';
 import { readManifest, type Manifest } from './capture.js';
 import { listSites, type Site } from './sites.js';
-import { recentDraftSummaries, SLOTS, type Slot } from './db.js';
+import { recentDraftSummaries, slotDate, SLOTS, type Slot } from './db.js';
+import { holidayOn, seasonFor, type Holiday } from './holidays.js';
 import { loadBrand, type Brand } from './render.js';
 
 // One plan per week: data/calendar/<weekOf>.json (the older single data/calendar.json is
@@ -15,12 +16,26 @@ export const CALENDAR_DIR = path.join(DATA_DIR, 'calendar');
 const LEGACY_PATH = path.join(DATA_DIR, 'calendar.json');
 export const planPath = (weekOf: string) => path.join(CALENDAR_DIR, `${weekOf}.json`);
 
+export type PlanTemplate = 'list' | 'stat' | 'quote' | 'screenshot' | 'none';
+
 export interface PlanDay {
   slot: Slot;
-  template: 'list' | 'stat' | 'quote' | 'screenshot';
+  date?: string;
+  /** "none" = no post that day (weekends by default). */
+  template: PlanTemplate;
   subject: string;
   site: string | null;
   reason: string;
+  /** Holiday falling on this date, if any. */
+  holiday?: string | null;
+  /** Seasonal theme to render with, from the holiday or the run-up to one. */
+  theme?: string | null;
+}
+
+export function dayContext(weekOf: string, slot: Slot): { date: string; holiday: Holiday | null; theme: string | null } {
+  const date = slotDate(weekOf, slot);
+  const holiday = holidayOn(date);
+  return { date, holiday, theme: holiday?.theme ?? seasonFor(date) };
 }
 
 export interface Plan {
@@ -91,15 +106,25 @@ function defaultPlan(weekOf: string, brand: Brand, sites: SiteSummary[]): Plan {
   const client = sites.find((s) => s.kind === 'client' && s.captured) ?? null;
   const own = sites.find((s) => s.kind === 'own' && s.captured) ?? null;
   const withQuote = sites.find((s) => s.kind === 'own' && s.captured && s.sections.includes('testimonials')) ?? null;
-  const days: PlanDay[] = [
-    { slot: 'mon', template: 'list', subject: 'Four things a dated website costs a small business', site: null, reason: 'default rotation' },
-    { slot: 'tue', template: 'stat', subject: voice.proofPoints[2] ?? 'A proof point', site: null, reason: 'default rotation' },
-    { slot: 'wed', template: client ? 'screenshot' : own ? 'screenshot' : 'list', subject: client ? `Recent work: ${client.name}` : own ? 'How we build' : 'What a fast site feels like', site: (client ?? own)?.slug ?? null, reason: 'default rotation' },
-    withQuote
-      ? { slot: 'thu', template: 'quote', subject: 'A client testimonial about us', site: withQuote.slug, reason: 'our testimonials section is captured' }
-      : { slot: 'thu', template: 'stat', subject: voice.proofPoints[3] ?? 'Reply time', site: null, reason: 'no testimonials captured' },
-    { slot: 'fri', template: 'list', subject: 'What to ask before hiring a web designer', site: null, reason: 'default rotation' },
-  ];
+  const base: Record<Slot, Omit<PlanDay, 'slot' | 'date' | 'holiday' | 'theme'>> = {
+    mon: { template: 'list', subject: 'Four things a dated website costs a small business', site: null, reason: 'default rotation' },
+    tue: { template: 'stat', subject: voice.proofPoints[2] ?? 'A proof point', site: null, reason: 'default rotation' },
+    wed: { template: client || own ? 'screenshot' : 'list', subject: client ? `Recent work: ${client.name}` : own ? 'How we build' : 'What a fast site feels like', site: (client ?? own)?.slug ?? null, reason: 'default rotation' },
+    thu: withQuote ? { template: 'quote', subject: 'A client testimonial about us', site: withQuote.slug, reason: 'our testimonials section is captured' } : { template: 'stat', subject: voice.proofPoints[3] ?? 'Reply time', site: null, reason: 'no testimonials captured' },
+    fri: { template: 'list', subject: 'What to ask before hiring a web designer', site: null, reason: 'default rotation' },
+    sat: { template: 'none', subject: '', site: null, reason: 'weekend' },
+    sun: { template: 'none', subject: '', site: null, reason: 'weekend' },
+  };
+  const days: PlanDay[] = SLOTS.map((slot) => {
+    const ctx = dayContext(weekOf, slot);
+    const d = { slot, ...base[slot], date: ctx.date, holiday: ctx.holiday?.name ?? null, theme: ctx.theme };
+    if (ctx.holiday) {
+      if (ctx.holiday.post && d.template === 'none') return { ...d, template: 'list', subject: `${ctx.holiday.name}: ${ctx.holiday.note}`, reason: `${ctx.holiday.name} falls on this day` };
+      if (!ctx.holiday.post && d.template !== 'none') return { ...d, template: 'none', subject: '', site: null, reason: `${ctx.holiday.name}: no post (${ctx.holiday.note})` };
+      return { ...d, subject: `${ctx.holiday.name}: ${d.subject}`, reason: `${ctx.holiday.name}` };
+    }
+    return d;
+  });
   return { weekOf, createdAt: new Date().toISOString(), source: 'default', days, claude: null };
 }
 
@@ -116,7 +141,7 @@ const SCHEMA = {
         required: ['slot', 'template', 'subject', 'site', 'reason'],
         properties: {
           slot: { type: 'string', enum: SLOTS },
-          template: { type: 'string', enum: ['list', 'stat', 'quote', 'screenshot'] },
+          template: { type: 'string', enum: ['list', 'stat', 'quote', 'screenshot', 'none'], description: '"none" = no post that day' },
           subject: { type: 'string', description: 'one sentence brief for the copywriter' },
           site: { type: ['string', 'null'], description: 'site slug the post is about, or null' },
           reason: { type: 'string', description: 'one short sentence for the reviewer' },
@@ -135,7 +160,10 @@ export async function planWeek(weekOf: string, log: (s: string) => void = () => 
   }
   const recent = recentDraftSummaries(15);
   const voice = brand['voice'] as Record<string, unknown>;
-  const system = `You plan a week of social ads for ${brand.name} (${brand['tagline']}), a small web design studio. Pick one template and a one-sentence subject for each weekday, Monday to Friday.
+  const week = SLOTS.map((slot) => ({ slot, ...dayContext(weekOf, slot) }));
+  const holidayLines = week.filter((d) => d.holiday).map((d) => `- ${d.slot} ${d.date}: ${d.holiday!.name}. ${d.holiday!.note}${d.holiday!.post ? '' : ' (no post)'}`);
+  const seasonal = week.find((d) => d.theme && !d.holiday)?.theme ?? null;
+  const system = `You plan a week of social ads for ${brand.name} (${brand['tagline']}), a small web design studio. The week runs Monday to Sunday. Pick one template and a one-sentence subject for each weekday, Monday to Friday. Saturday and Sunday are "none" (no post) unless a holiday worth posting on falls there.
 
 Templates:
 - list: four punchy one-word lines plus a short verdict. Good for pain points, checklists, contrasts.
@@ -144,21 +172,28 @@ Templates:
 - screenshot: a headline with one accent word over a crop of a real site. Needs a captured site.
 
 Every post is about what the studio does: its work (client sites as examples of our craft), its results (proof points), its clients' words about it. Never make a post about what a client's customers think of the client.
+Holidays this week:
+${holidayLines.length ? holidayLines.join('\n') : '- none'}
+A day marked "(no post)" must be template "none". A holiday worth posting on gets a post that acknowledges it naturally in the subject (the copy will be rendered in that holiday's seasonal colors); keep it on-brand, no sales pitch on sombre days.${seasonal ? ` The week is in the run-up to a ${seasonal} theme; subjects may nod to the season.` : ''}
 Rules: vary templates across the week (no template three times, no two in a row), spread sites out, prefer sites not used recently. Sites of kind "own" are the studio's own site: posts about them speak in the first person and never present them as a client or attach client proof points. Client sites with permissionToName=false must stay anonymous in the subject. Keep subjects concrete and specific to the site or proof point. Return only JSON.`;
   const user = `Week of ${weekOf}.\n\nSites:\n${JSON.stringify(sites, null, 1)}\n\nRecent posts (avoid repeating):\n${JSON.stringify(recent, null, 1)}`;
   const r = await askJson<{ days: PlanDay[] }>({ system, messages: [{ role: 'user', content: user }], schema: SCHEMA, effort: 'medium', maxTokens: 2048 });
   const bySlot = new Map(r.data.days.map((d) => [d.slot, d]));
   const fallback = defaultPlan(weekOf, brand, sites);
   const known = new Set(sites.map((s) => s.slug));
-  const days = SLOTS.map((slot) => {
-    const d = bySlot.get(slot) ?? fallback.days.find((x) => x.slot === slot)!;
+  const days: PlanDay[] = SLOTS.map((slot) => {
+    const fb = fallback.days.find((x) => x.slot === slot)!;
+    const d = bySlot.get(slot);
+    const ctx = dayContext(weekOf, slot);
+    if (!d) return fb;
     const site = d.site && known.has(d.site) ? d.site : null;
     const sum = site ? sites.find((s) => s.slug === site) : null;
-    let template = d.template;
+    let template: PlanTemplate = d.template;
+    if (ctx.holiday && !ctx.holiday.post) template = 'none';
     if (template === 'quote' && !(sum && sum.kind === 'own' && sum.sections.includes('testimonials'))) template = 'stat';
     if (template === 'screenshot' && !(sum && sum.captured)) template = 'list';
-    return { ...d, slot, site, template };
+    return { slot, date: ctx.date, template, subject: template === 'none' ? '' : d.subject, site: template === 'none' ? null : site, reason: d.reason, holiday: ctx.holiday?.name ?? null, theme: ctx.theme };
   });
-  log(`Claude planned: ${days.map((d) => `${d.slot}=${d.template}`).join(' ')} ($${r.costUsd.toFixed(4)})`);
+  log(`Claude planned: ${days.filter((d) => d.template !== 'none').map((d) => `${d.slot}=${d.template}`).join(' ')} ($${r.costUsd.toFixed(4)})`);
   return { weekOf, createdAt: new Date().toISOString(), source: 'claude', days, claude: { request: r.request, response: r.response, costUsd: r.costUsd } };
 }

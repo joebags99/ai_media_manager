@@ -15,7 +15,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { bufferConfig, createPost, deletePost, type BufferConfig } from './buffer.js';
 import { ROOT, TEST_MODE } from './config.js';
-import { getDraft, listDrafts, updateDraft, type Draft, type Slot } from './db.js';
+import { getDraft, listDrafts, updateDraft, SLOT_OFFSET, type Draft, type Slot } from './db.js';
 import { loadBrand, type Brand } from './render.js';
 import type { DraftContent } from './validate.js';
 import { transition } from './workflow.js';
@@ -58,7 +58,7 @@ export function isoInZone(date: Date, timeZone: string): string {
 
 /** Local wall-clock (zone) date for the draft's slot at POST_HOUR_LOCAL. */
 function slotDate(weekOf: string, slot: Slot, timeZone: string): Date {
-  const offset = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4 }[slot];
+  const offset = SLOT_OFFSET[slot];
   const d = new Date(`${weekOf}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + offset);
   // Find the UTC instant that is POST_HOUR_LOCAL in the zone on that calendar day.

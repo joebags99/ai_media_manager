@@ -31,6 +31,7 @@ export async function renderDraftRow(draft: Draft): Promise<Draft> {
     slots: content.slots,
     crop: content.crop,
     screenshotDir: draft.site ? siteDir(draft.site) : undefined,
+    theme: content.theme ?? null,
   });
   return updateDraft(draft.id, { renderSquare: r.square, renderPortrait: r.portrait });
 }
@@ -75,6 +76,7 @@ export async function runWeekly(opts: WeeklyOptions = {}): Promise<{ weekOf: str
     const browser = await chromium.launch();
     try {
       for (const day of plan.days) {
+        if (day.template === 'none') continue;
         if (have.has(day.slot) && !opts.force) {
           log(`${day.slot}: draft exists, skipping`);
           continue;

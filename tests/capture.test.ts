@@ -22,3 +22,12 @@ describe('capture', () => {
     expect(await isCaptureFresh('sample-local', 0)).toBe(false);
   }, 60_000);
 });
+
+describe('capture resilience', () => {
+  it('skips hidden matches and records missing sections as warnings', async () => {
+    const m = await captureSite('sample-hidden', { log: () => {} });
+    const hero = m.shots.find((s) => s.section === 'hero' && s.viewport === 'desktop');
+    expect(hero?.height).toBe(300);
+    expect(m.warnings.some((w) => w.includes('"missing"'))).toBe(true);
+  }, 60_000);
+});

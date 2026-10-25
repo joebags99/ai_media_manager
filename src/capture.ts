@@ -90,26 +90,35 @@ async function captureViewport(page: Page, site: Site, viewport: Viewport, dir: 
   for (const section of site.recipe.sections) {
     const file = `${section.name}-${viewport}.png`;
     const out = path.join(dir, file);
-    const loc = page.locator(section.selector).first();
-    if ((await loc.count()) === 0) {
-      warnings.push(`${viewport}: selector for "${section.name}" not found (${section.selector})`);
-      log(`warn: ${section.name} not found at ${viewport}`);
-      continue;
+    // First *visible* match wins; hidden matches (display:none sections, script tags) are skipped.
+    const loc = page.locator(section.selector).filter({ visible: true }).first();
+    try {
+      if ((await loc.count()) === 0) {
+        warnings.push(`${viewport}: no visible element for "${section.name}" (${section.selector})`);
+        log(`warn: ${section.name} not visible at ${viewport}`);
+        continue;
+      }
+      await loc.scrollIntoViewIfNeeded({ timeout: 5_000 });
+      await page.waitForTimeout(200);
+      const box = await loc.boundingBox();
+      if (!box || box.width < 10 || box.height < 10) {
+        warnings.push(`${viewport}: "${section.name}" has no usable box`);
+        continue;
+      }
+      await loc.screenshot({ path: out, type: 'png', animations: 'disabled', timeout: 15_000 });
+      shots.push({ section: section.name, viewport, file, width: Math.round(box.width), height: Math.round(box.height) });
+      log(`captured ${file} (${Math.round(box.width)}x${Math.round(box.height)})`);
+    } catch (err) {
+      const msg = (err instanceof Error ? err.message : String(err)).split('\n')[0];
+      warnings.push(`${viewport}: "${section.name}" failed: ${msg}`);
+      log(`warn: ${section.name} at ${viewport}: ${msg}`);
     }
-    await loc.scrollIntoViewIfNeeded();
-    const box = await loc.boundingBox();
-    if (!box || box.width < 10 || box.height < 10) {
-      warnings.push(`${viewport}: "${section.name}" has no visible box`);
-      continue;
-    }
-    await loc.screenshot({ path: out, type: 'png', animations: 'disabled' });
-    shots.push({ section: section.name, viewport, file, width: Math.round(box.width), height: Math.round(box.height) });
-    log(`captured ${file} (${Math.round(box.width)}x${Math.round(box.height)})`);
   }
   // Always keep a full-viewport shot of the top of the page too.
   const topFile = `page-${viewport}.png`;
   await page.evaluate('window.scrollTo(0, 0)');
-  await page.screenshot({ path: path.join(dir, topFile), type: 'png', animations: 'disabled' });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(dir, topFile), type: 'png', animations: 'disabled', timeout: 15_000 });
   shots.push({ section: 'page', viewport, file: topFile, ...VIEWPORTS[viewport] });
   return shots;
 }

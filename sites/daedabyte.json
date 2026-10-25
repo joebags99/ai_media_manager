@@ -5,11 +5,11 @@
   "permissionToName": true,
   "recipe": {
     "dismiss": ["button:has-text('Accept')", "[aria-label='Close']"],
-    "waitFor": ["main, body"],
-    "settleMs": 800,
+    "waitFor": ["body"],
+    "settleMs": 1000,
     "sections": [
-      { "name": "hero", "selector": "main > *:first-child, header + *, section" },
-      { "name": "services", "selector": "section:nth-of-type(2)" }
+      { "name": "hero", "selector": "main section, main > div, section, header + div" },
+      { "name": "services", "selector": "main section:nth-of-type(2), section:nth-of-type(2)" }
     ]
   }
 }

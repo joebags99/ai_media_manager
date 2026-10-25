@@ -1,0 +1,15 @@
+{
+  "name": "Daedabyte Web Solutions",
+  "url": "https://daedabyte.com/",
+  "industry": "web design",
+  "permissionToName": true,
+  "recipe": {
+    "dismiss": ["button:has-text('Accept')", "[aria-label='Close']"],
+    "waitFor": ["main, body"],
+    "settleMs": 800,
+    "sections": [
+      { "name": "hero", "selector": "main > *:first-child, header + *, section" },
+      { "name": "services", "selector": "section:nth-of-type(2)" }
+    ]
+  }
+}

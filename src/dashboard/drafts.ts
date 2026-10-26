@@ -9,7 +9,7 @@ import { hasApiKey } from '../claude.js';
 import { readManifest, siteDir } from '../capture.js';
 import { loadBrand, type Brand } from '../render.js';
 import { validateContent, type DraftContent } from '../validate.js';
-import { approve, reject, archive, duplicate } from '../workflow.js';
+import { approve, reject, archive, duplicate, remove, clearWeek } from '../workflow.js';
 import { regenerateCaptions } from '../generate.js';
 import { slotPicker } from './library.js';
 import { reviseDraft } from '../revise.js';
@@ -104,14 +104,16 @@ function actions(d: Draft, versions: Draft[], brand: Brand): string {
 
 /** Shelve / duplicate / recaption, for drafts that are current and not yet in Buffer. */
 function utilities(d: Draft): string {
-  if (!['pending', 'approved', 'rejected'].includes(d.status)) return '';
+  if (!['pending', 'approved', 'rejected', 'archived', 'error'].includes(d.status)) return '';
   return section(
     'Reuse',
     'Shelve keeps this draft in the Library for a last-minute swap later. Duplicate copies it into another day as a new pending draft. New captions asks Claude for different captions and hashtags without touching the image.',
     `<div class="row" style="align-items:flex-start;gap:18px;flex-wrap:wrap">
-      ${d.status !== 'rejected' ? `<form method="post" action="/drafts/${d.id}/archive" class="card tight"><b>Shelve for later</b><div style="margin-top:8px"><button class="secondary small">Shelve</button></div></form>` : ''}
+      ${['pending', 'approved'].includes(d.status) ? `<form method="post" action="/drafts/${d.id}/archive" class="card tight"><b>Shelve for later</b><div style="margin-top:8px"><button class="secondary small">Shelve</button></div></form>` : ''}
       <div class="card tight"><b>Duplicate to</b><div style="margin-top:8px">${slotPicker(`/drafts/${d.id}/duplicate`, 'Duplicate')}</div></div>
       <form method="post" action="/drafts/${d.id}/captions" class="card tight" style="flex:1 1 320px"><b>New captions</b><div class="row" style="margin-top:8px"><input name="note" placeholder="optional: what to change" style="flex:1"><button class="secondary small">Ask Claude</button></div></form>
+      ${d.weekOf !== 'library' ? `<form method="post" action="/drafts/${d.id}/regenerate" class="card tight" onsubmit="return confirm('Shelve this draft and have Claude write a new one for ${DAY_NAMES[d.slot]} from the current plan?')"><b>Regenerate this day</b><div style="margin-top:8px"><button class="secondary small">Shelve and regenerate</button></div></form>` : ''}
+      <form method="post" action="/drafts/${d.id}/delete" class="card tight" onsubmit="return confirm('Delete this draft for good? Shelving keeps it; deleting does not.')"><b>Delete</b><div style="margin-top:8px"><button class="danger small">Delete for good</button></div></form>
     </div>`,
   );
 }
@@ -217,7 +219,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
           'Drafts',
           'One ad per weekday. Each draft is Claude’s copy rendered through a fixed template; nothing reaches Buffer until you approve it here.',
           `<form method="post" action="/weekly" class="row" style="gap:8px"><label class="hint" for="runWeek">Week of</label><input id="runWeek" type="date" name="weekOf" value="${esc(nextWeekOf())}" title="Any day; snaps to that week’s Monday"><button class="primary">Run weekly</button></form>
-           ${weekOf ? `<a class="btn secondary" href="/digest/${weekOf}" target="_blank">Preview digest</a><form method="post" action="/digest/${weekOf}/send" class="inline"><button class="secondary">Send digest</button></form>` : ''}`,
+           ${weekOf ? `<a class="btn secondary" href="/review?week=${weekOf}">Review mode</a><a class="btn secondary" href="/digest/${weekOf}" target="_blank">Preview digest</a><form method="post" action="/digest/${weekOf}/send" class="inline"><button class="secondary">Send digest</button></form><form method="post" action="/weekly/clear" class="inline" onsubmit="return confirm('Shelve every pending and approved draft for ${weekOf}? They go to the Library; the week is then free to regenerate.')"><input type="hidden" name="weekOf" value="${weekOf}"><button class="secondary">Clear week</button></form>` : ''}`,
         ) +
         steps(weekOf, counts) +
         (hasApiKey() ? '' : notice('warn', 'No <code>ANTHROPIC_API_KEY</code> in .env: the weekly run will stop at generation.')) +
@@ -268,6 +270,32 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
     } catch (err) {
       res.status(400).send(page('Draft', pageHead('Not shelved', esc((err as Error).message), `<a class="btn secondary" href="/drafts/${id}">Back</a>`), '/'));
     }
+  });
+  app.post('/drafts/:id/delete', (req, res) => {
+    const id = String(req.params['id']);
+    const d = getDraft(id);
+    try {
+      remove(id);
+      res.redirect(d && d.weekOf !== 'library' ? `/?week=${d.weekOf}` : '/library');
+    } catch (err) {
+      res.status(400).send(page('Draft', pageHead('Not deleted', esc((err as Error).message), `<a class="btn secondary" href="/drafts/${id}">Back</a>`), '/'));
+    }
+  });
+  app.post('/drafts/:id/regenerate', (req, res) => {
+    const id = String(req.params['id']);
+    const d = getDraft(id);
+    if (!d) {
+      res.status(404).send('unknown draft');
+      return;
+    }
+    if (d.status === 'pending' || d.status === 'approved') archive(id);
+    const job = startJob('weekly', `Regenerate ${DAY_NAMES[d.slot]} ${d.weekOf}`, (log) => runWeekly({ weekOf: d.weekOf, only: [d.slot], log, digest: false }));
+    res.redirect(`/jobs/${job.id}?next=/?week=${d.weekOf}`);
+  });
+  app.post('/weekly/clear', (req, res) => {
+    const weekOf = mondayOf(String((req.body as Record<string, string>)['weekOf'] || nextWeekOf()));
+    clearWeek(weekOf);
+    res.redirect(`/?week=${weekOf}`);
   });
   app.post('/drafts/:id/duplicate', (req, res) => {
     const id = String(req.params['id']);

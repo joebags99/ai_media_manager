@@ -148,6 +148,11 @@ export function updateDraft(id: string, patch: Partial<Omit<Draft, 'id' | 'orgId
   return getDraft(id)!;
 }
 
+/** Permanently remove a draft row (renders on disk are left alone). */
+export function deleteDraft(id: string): void {
+  openDb().prepare('DELETE FROM drafts WHERE id = ? AND orgId = ?').run(id, ORG_ID);
+}
+
 export function getDraft(id: string): Draft | undefined {
   return openDb().prepare('SELECT * FROM drafts WHERE id = ?').get(id) as Draft | undefined;
 }
@@ -166,7 +171,8 @@ export function listDrafts(opts: { weekOf?: string; status?: DraftStatus | Draft
     list.forEach((s, i) => (params[`s${i}`] = s));
   }
   if (opts.latestOnly) {
-    where.push("status != 'archived' AND version = (SELECT MAX(version) FROM drafts d2 WHERE d2.orgId = drafts.orgId AND d2.weekOf = drafts.weekOf AND d2.slot = drafts.slot AND d2.status != 'archived')");
+    // Shelved rows and superseded versions ('revising') never count as a slot's current draft.
+    where.push("status NOT IN ('archived', 'revising') AND version = (SELECT MAX(version) FROM drafts d2 WHERE d2.orgId = drafts.orgId AND d2.weekOf = drafts.weekOf AND d2.slot = drafts.slot AND d2.status NOT IN ('archived', 'revising'))");
   }
   return openDb()
     .prepare(`SELECT * FROM drafts WHERE ${where.join(' AND ')} ORDER BY weekOf DESC, CASE slot WHEN 'mon' THEN 1 WHEN 'tue' THEN 2 WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 WHEN 'fri' THEN 5 WHEN 'sat' THEN 6 ELSE 7 END, version DESC`)

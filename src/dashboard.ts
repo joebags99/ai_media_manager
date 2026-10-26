@@ -20,6 +20,7 @@ import { registerDraftRoutes } from './dashboard/drafts.js';
 import { registerBufferRoutes } from './dashboard/buffer.js';
 import { registerReviewRoutes } from './dashboard/reviews.js';
 import { registerLibraryRoutes } from './dashboard/library.js';
+import { registerReviewModeRoutes } from './dashboard/review.js';
 
 let iconSvg = '';
 async function loadIcon(): Promise<string> {
@@ -79,6 +80,7 @@ export function createApp(): express.Express {
   registerBufferRoutes(app, page, wrap);
   registerReviewRoutes(app, page, wrap);
   registerLibraryRoutes(app, page, wrap);
+  registerReviewModeRoutes(app, page, wrap);
 
   // ---- Templates: fixture previews ------------------------------------------------
   app.get(

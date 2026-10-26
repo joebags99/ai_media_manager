@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 import path from 'node:path';
 import { captureSite, isCaptureFresh, siteDir } from './capture.js';
 import { COST_CEILING_USD } from './config.js';
-import { finishRun, listDrafts, nextWeekOf, startRun, updateDraft, type Draft } from './db.js';
+import { finishRun, listDrafts, nextWeekOf, startRun, updateDraft, type Draft, type Slot } from './db.js';
 import { generateDraft, type Ask } from './generate.js';
 import { planWeek, readPlan, writePlan, type Plan } from './plan.js';
 import { renderDraft, type TemplateName } from './render.js';
@@ -21,6 +21,8 @@ export interface WeeklyOptions {
   costCeilingUsd?: number;
   /** Send the digest after the run. Default true. */
   digest?: boolean;
+  /** Generate only these slots (others untouched). */
+  only?: Slot[];
 }
 
 export async function renderDraftRow(draft: Draft): Promise<Draft> {
@@ -58,7 +60,7 @@ export async function runWeekly(opts: WeeklyOptions = {}): Promise<{ weekOf: str
     const plan = await ensurePlan(weekOf, log);
     cost += plan.claude?.costUsd ?? 0;
 
-    const sites = [...new Set(plan.days.map((d) => d.site).filter((s): s is string => Boolean(s)))];
+    const sites = [...new Set(plan.days.filter((d) => !opts.only || opts.only.includes(d.slot)).map((d) => d.site).filter((s): s is string => Boolean(s)))];
     for (const slug of sites) {
       if (await isCaptureFresh(slug)) {
         log(`${slug}: capture is fresh, skipping`);
@@ -77,6 +79,7 @@ export async function runWeekly(opts: WeeklyOptions = {}): Promise<{ weekOf: str
     try {
       for (const day of plan.days) {
         if (day.template === 'none') continue;
+        if (opts.only && !opts.only.includes(day.slot)) continue;
         if (have.has(day.slot) && !opts.force) {
           log(`${day.slot}: draft exists, skipping`);
           continue;

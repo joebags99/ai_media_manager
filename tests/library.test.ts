@@ -77,3 +77,30 @@ describe('guardrails', () => {
     expect(u.costUsd).toBeCloseTo(0.01);
   });
 });
+
+describe('making room', () => {
+  it('shelving v2 does not resurrect the superseded v1', async () => {
+    const v1 = mk('2027-01-04', 'mon', 'First take.');
+    const { updateDraft } = await import('../src/db.js');
+    updateDraft(v1.id, { status: 'revising' });
+    const v2 = insertDraft({ weekOf: '2027-01-04', slot: 'mon', site: null, template: 'headline', contentJson: content('Second take.'), generationContext: '{}', costUsd: 0, version: 2 });
+    expect(currentDraft('2027-01-04', 'mon')!.id).toBe(v2.id);
+    archive(v2.id);
+    expect(currentDraft('2027-01-04', 'mon')).toBeUndefined();
+    expect(listDrafts({ weekOf: '2027-01-04', latestOnly: true })).toHaveLength(0);
+  });
+  it('delete refuses scheduled drafts and clear-week shelves the rest', async () => {
+    const { remove, clearWeek } = await import('../src/workflow.js');
+    const { updateDraft } = await import('../src/db.js');
+    const a = mk('2027-01-11', 'mon', 'Keep me in Buffer.');
+    updateDraft(a.id, { status: 'scheduled' });
+    expect(() => remove(a.id)).toThrow(/scheduled/);
+    const b = approve(mk('2027-01-11', 'tue', 'Clear me.').id);
+    const shelved = clearWeek('2027-01-11');
+    expect(shelved.map((d) => d.id)).toEqual([b.id]);
+    expect(getDraft(b.id)!.status).toBe('archived');
+    expect(getDraft(a.id)!.status).toBe('scheduled');
+    remove(b.id);
+    expect(getDraft(b.id)).toBeUndefined();
+  });
+});

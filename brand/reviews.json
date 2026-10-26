@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "id": "1c16f8fa-01b6-463c-b4f5-f2bd333234e3",
+    "name": "Michael Cain",
+    "business": "Poppy's Dust",
+    "text": "Jonathan and team at Daedabyte did a great job creating my Shopify site. They worked hand in hand with me from beginning to end. Can’t say enough good things so I’ll just say Thanks Daedabyte!",
+    "source": "google",
+    "date": "2026-03-08",
+    "addedAt": "2026-10-26T00:37:41.135Z"
+  },
+  {
+    "id": "488e41aa-26aa-4dea-85d8-a777e54663d1",
+    "name": "Anthony H.",
+    "business": "Hero's Journey",
+    "text": "Jonathan and his team made our hesitancy at the prospect of creating a website vanish. It was their level of diligence and professionalism that convinced us to take the plunge!",
+    "source": "google",
+    "date": "2025-05-21",
+    "addedAt": "2026-10-26T00:37:07.478Z"
+  },
+  {
+    "id": "41c333b2-6758-4329-b482-ea48e4035236",
+    "name": "Surab J.",
+    "business": "Mount Heritage Bar & Grill",
+    "text": "Very professional and easy to work with also helps you with all your needs for digital solutions. We got this company to have our website for the restaurant! Jonathan goes above and beyond for the work and is really convenient to work and share plans for the project! So highly recommended from us!",
+    "source": "google",
+    "date": "2025-05-21",
+    "addedAt": "2026-10-26T00:36:36.927Z"
+  },
+  {
+    "id": "9d8d3dd3-da8c-4eb0-b1b8-b341d13dd5d0",
+    "name": "Alinah Kargar",
+    "business": "Little Cheese Collective",
+    "text": "Working with DaedaByte was an amazing experience! They took extra care to customize our website exactly how we wanted it, while keeping us updated every step of the way. I recommend them to all my friends with tech needs -- from website building to social media marketing.",
+    "source": "google",
+    "date": "2026-01-18",
+    "addedAt": "2026-10-26T00:35:03.019Z"
+  }
+]

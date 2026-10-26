@@ -8,6 +8,7 @@ import { reviseDraft } from '../revise.js';
 import { startJob } from '../jobs.js';
 import type { DraftContent } from '../validate.js';
 import { badge, empty, esc, pageHead } from './html.js';
+import { TEST_MODE } from '../config.js';
 
 type Page = (title: string, body: string, active: string) => string;
 type Wrap = (fn: (req: Request, res: Response) => Promise<void>) => RequestHandler;
@@ -28,7 +29,7 @@ export function registerReviewModeRoutes(app: Express, page: Page, wrap: Wrap): 
       const d = (requested && all.find((x) => x.id === requested)) ?? pending[0] ?? null;
       const back = `<a class="btn secondary" href="/?week=${weekOf}">All drafts</a>`;
       if (!d) {
-        res.send(page('Review', pageHead('Review mode', `Week of ${weekOf}`, back) + empty('Nothing left to review', all.length ? `${all.length} approved. Head to a draft to publish, or to the Buffer tab.` : 'No pending drafts this week.'), '/'));
+        res.send(page('Review', pageHead('Review mode', `Week of ${weekOf}`, back) + empty('Nothing left to review', all.length ? `${all.length} approved and ready.` : 'No pending drafts this week.', all.length ? `<form method="post" action="/weekly/publish" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: ' : 'LIVE: '}schedule all ${all.length} approved draft(s)?')"><input type="hidden" name="weekOf" value="${weekOf}"><button class="primary">${TEST_MODE ? 'Test-publish' : 'Publish'} all ${all.length} approved</button></form>` : ''), '/'));
         return;
       }
       const idx = all.findIndex((x) => x.id === d.id);
@@ -57,14 +58,14 @@ export function registerReviewModeRoutes(app: Express, page: Page, wrap: Wrap): 
             <div class="card tight">
               <div class="row">
                 ${d.status === 'pending' ? `<form method="post" action="/review/${d.id}/approve" class="inline" id="fA"><input type="hidden" name="week" value="${weekOf}"><button class="ok">Approve <kbd>A</kbd></button></form>
-                <form method="post" action="/review/${d.id}/reject" class="inline" id="fR"><input type="hidden" name="week" value="${weekOf}"><button class="danger">Reject <kbd>R</kbd></button></form>` : `<span class="hint">Approved.</span>`}
+                <form method="post" action="/review/${d.id}/reject" class="inline" id="fR"><input type="hidden" name="week" value="${weekOf}"><button class="danger">Reject <kbd>R</kbd></button></form>` : `<form method="post" action="/drafts/${d.id}/publish" class="inline" id="fP"><input type="hidden" name="next" value="/review?week=${weekOf}"><button class="primary">${TEST_MODE ? 'Test-publish' : 'Publish'} <kbd>P</kbd></button></form>`}
                 <form method="post" action="/review/${d.id}/archive" class="inline" id="fS"><input type="hidden" name="week" value="${weekOf}"><button class="secondary">Shelve <kbd>S</kbd></button></form>
                 <a class="btn secondary" href="/drafts/${d.id}">Full page</a>
               </div>
               ${d.status === 'pending' ? `<form method="post" action="/review/${d.id}/revise" id="fF" style="margin-top:12px"><input type="hidden" name="week" value="${weekOf}"><textarea name="feedback" id="feedback" rows="2" placeholder="Feedback for Claude, then Enter  (F to focus)" style="width:100%"></textarea></form>` : ''}
               ${pending.length > 1 ? `<form method="post" action="/review/approve-all" style="margin-top:12px" onsubmit="return confirm('Approve all ${pending.length} pending drafts for this week?')"><input type="hidden" name="week" value="${weekOf}"><button class="secondary small">Approve all ${pending.length} pending</button></form>` : ''}
             </div>
-            <p class="hint" style="margin-top:10px"><kbd>A</kbd> approve · <kbd>R</kbd> reject · <kbd>S</kbd> shelve · <kbd>F</kbd> feedback · <kbd>←</kbd> <kbd>→</kbd> or <kbd>J</kbd> <kbd>K</kbd> move</p>
+            <p class="hint" style="margin-top:10px"><kbd>A</kbd> approve · <kbd>R</kbd> reject · <kbd>S</kbd> shelve · <kbd>P</kbd> publish (approved) · <kbd>F</kbd> feedback · <kbd>←</kbd> <kbd>→</kbd> or <kbd>J</kbd> <kbd>K</kbd> move</p>
           </div>
         </div>
         <style>kbd { font: 11px var(--body); background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); border-radius: 4px; padding: 1px 5px; margin-left: 6px; } .secondary kbd, .hint kbd { background: var(--marble); border-color: var(--lavender); color: var(--ink); }</style>
@@ -76,7 +77,7 @@ export function registerReviewModeRoutes(app: Express, page: Page, wrap: Wrap): 
               if (e.target === fb) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (fb.value.trim()) go('fF'); } if (e.key === 'Escape') fb.blur(); return; }
               if (e.metaKey || e.ctrlKey || e.altKey) return;
               const k = e.key.toLowerCase();
-              if (k === 'a') go('fA'); else if (k === 'r') { if (confirm('Reject this draft?')) go('fR'); } else if (k === 's') go('fS');
+              if (k === 'a') go('fA'); else if (k === 'r') { if (confirm('Reject this draft?')) go('fR'); } else if (k === 's') go('fS'); else if (k === 'p') go('fP');
               else if (k === 'f' && fb) { e.preventDefault(); fb.focus(); }
               else if (k === 'arrowright' || k === 'k') { ${next ? `location.href = '/review?week=${weekOf}&d=${next.id}';` : ''} }
               else if (k === 'arrowleft' || k === 'j') { ${prev ? `location.href = '/review?week=${weekOf}&d=${prev.id}';` : ''} }

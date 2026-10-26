@@ -110,7 +110,7 @@ function utilities(d: Draft): string {
     'Shelve keeps this draft in the Library for a last-minute swap later. Duplicate copies it into another day as a new pending draft. New captions asks Claude for different captions and hashtags without touching the image.',
     `<div class="row" style="align-items:flex-start;gap:18px;flex-wrap:wrap">
       ${['pending', 'approved'].includes(d.status) ? `<form method="post" action="/drafts/${d.id}/archive" class="card tight"><b>Shelve for later</b><div style="margin-top:8px"><button class="secondary small">Shelve</button></div></form>` : ''}
-      <div class="card tight"><b>Duplicate to</b><div style="margin-top:8px">${slotPicker(`/drafts/${d.id}/duplicate`, 'Duplicate')}</div></div>
+      <div class="card tight"><b>Duplicate to</b><div style="margin-top:8px">${slotPicker(`/drafts/${d.id}/duplicate`, 'Duplicate', 'secondary', d.weekOf !== 'library' ? d.weekOf : undefined)}</div></div>
       <form method="post" action="/drafts/${d.id}/captions" class="card tight" style="flex:1 1 320px"><b>New captions</b><div class="row" style="margin-top:8px"><input name="note" placeholder="optional: what to change" style="flex:1"><button class="secondary small">Ask Claude</button></div></form>
       ${d.weekOf !== 'library' ? `<form method="post" action="/drafts/${d.id}/regenerate" class="card tight" onsubmit="return confirm('Shelve this draft and have Claude write a new one for ${DAY_NAMES[d.slot]} from the current plan?')"><b>Regenerate this day</b><div style="margin-top:8px"><button class="secondary small">Shelve and regenerate</button></div></form>` : ''}
       <form method="post" action="/drafts/${d.id}/delete" class="card tight" onsubmit="return confirm('Delete this draft for good? Shelving keeps it; deleting does not.')"><b>Delete</b><div style="margin-top:8px"><button class="danger small">Delete for good</button></div></form>
@@ -211,14 +211,15 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
             <a href="/drafts/${d.id}" title="${esc(STATUS_HELP[d.status] ?? '')}">${img ? `<img src="${img}?v=${d.version}" alt="" style="margin:10px 0">` : '<p class="muted">not rendered</p>'}</a>
             <div class="muted">${esc(d.template)}${d.site ? ` · ${esc(d.site)}` : ''} · v${d.version} · $${d.costUsd.toFixed(3)}</div>
             <p style="margin:6px 0 0;font-size:14px">${esc(c.rationale)}</p>
-            <div style="margin-top:10px"><a class="btn secondary small" href="/drafts/${d.id}">${d.status === 'pending' ? 'Review' : d.status === 'approved' ? 'Publish' : 'Open'}</a></div></div>`;
+            <div class="row" style="margin-top:10px;gap:8px">${d.status === 'approved' ? `<form method="post" action="/drafts/${d.id}/publish" class="inline" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: schedule this draft 60 days out on its default channels?' : 'LIVE: schedule this draft on its default channels?'}')"><input type="hidden" name="next" value="/?week=${d.weekOf}"><button class="primary small">${TEST_MODE ? 'Test-publish' : 'Publish'}</button></form>` : ''}<a class="btn secondary small" href="/drafts/${d.id}">${d.status === 'pending' ? 'Review' : 'Open'}</a></div></div>`;
         })
         .join('');
       const body =
         pageHead(
           'Drafts',
           'One ad per weekday. Each draft is Claude’s copy rendered through a fixed template; nothing reaches Buffer until you approve it here.',
-          `<form method="post" action="/weekly" class="row" style="gap:8px"><label class="hint" for="runWeek">Week of</label><input id="runWeek" type="date" name="weekOf" value="${esc(nextWeekOf())}" title="Any day; snaps to that week’s Monday"><button class="primary">Run weekly</button></form>
+          `${(counts['approved'] ?? 0) > 0 ? `<form method="post" action="/weekly/publish" class="inline" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: schedule all ' : 'LIVE: schedule all '}${counts['approved']} approved draft(s) on their default channels?')"><input type="hidden" name="weekOf" value="${weekOf}"><button class="primary">${TEST_MODE ? 'Test-publish' : 'Publish'} all approved (${counts['approved']})</button></form>` : ''}
+           <form method="post" action="/weekly" class="row" style="gap:8px"><label class="hint" for="runWeek">Week of</label><input id="runWeek" type="date" name="weekOf" value="${esc(weekOf ?? nextWeekOf())}" title="Any day; snaps to that week’s Monday"><button class="${(counts['approved'] ?? 0) > 0 ? 'secondary' : 'primary'}">Run weekly</button></form>
            ${weekOf ? `<a class="btn secondary" href="/review?week=${weekOf}">Review mode</a><a class="btn secondary" href="/digest/${weekOf}" target="_blank">Preview digest</a><form method="post" action="/digest/${weekOf}/send" class="inline"><button class="secondary">Send digest</button></form><form method="post" action="/weekly/clear" class="inline" onsubmit="return confirm('Shelve every pending and approved draft for ${weekOf}? They go to the Library; the week is then free to regenerate.')"><input type="hidden" name="weekOf" value="${weekOf}"><button class="secondary">Clear week</button></form>` : ''}`,
         ) +
         steps(weekOf, counts) +

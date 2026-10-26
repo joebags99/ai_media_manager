@@ -14,9 +14,9 @@ type Wrap = (fn: (req: Request, res: Response) => Promise<void>) => RequestHandl
 const DAY_NAMES: Record<Slot, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
 
 /** Week + day picker used by Place and Duplicate. */
-export function slotPicker(action: string, button: string, cls = 'secondary'): string {
+export function slotPicker(action: string, button: string, cls = 'secondary', weekOf?: string): string {
   return `<form method="post" action="${action}" class="row" style="gap:8px">
-    <input type="date" name="weekOf" value="${esc(nextWeekOf())}" title="Any day; snaps to that week’s Monday">
+    <input type="date" name="weekOf" value="${esc(weekOf ?? nextWeekOf())}" title="Any day; snaps to that week’s Monday">
     <select name="slot">${SLOTS.map((s) => `<option value="${s}">${DAY_NAMES[s]}</option>`).join('')}</select>
     <button class="${cls} small">${button}</button></form>`;
 }

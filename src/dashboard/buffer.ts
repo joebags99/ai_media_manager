@@ -2,7 +2,7 @@
 import type { Express, Request, Response, RequestHandler } from 'express';
 import { bufferConfig, getAccount, listChannels } from '../buffer.js';
 import { TEST_MODE } from '../config.js';
-import { getDraft } from '../db.js';
+import { getDraft, listDrafts, mondayOf, nextWeekOf } from '../db.js';
 import { startJob } from '../jobs.js';
 import { deleteBufferPosts, publishDraft, specBuffer, PLATFORMS, type Platform } from '../publish.js';
 import { esc, notice, pageHead, section } from './html.js';
@@ -65,11 +65,36 @@ export function registerBufferRoutes(app: Express, page: Page, wrap: Wrap): void
     const b = (req.body ?? {}) as Record<string, string | string[]>;
     const raw = b['platforms'];
     const chosen = (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((p): p is Platform => (PLATFORMS as string[]).includes(p));
+    const next = typeof b['next'] === 'string' && b['next'].startsWith('/') ? b['next'] : `/drafts/${d.id}`;
     const job = startJob('publish', `Publish ${d.slot} ${d.weekOf}`, async (log) => {
       const r = await publishDraft(d.id, { log, platforms: chosen.length ? chosen : undefined });
       return r.postIds;
     });
-    res.redirect(`/jobs/${job.id}?next=/drafts/${d.id}`);
+    res.redirect(`/jobs/${job.id}?next=${encodeURIComponent(next)}`);
+  });
+
+  // Every approved draft of a week, in order, default channels each; keeps going past a failure.
+  app.post('/weekly/publish', (req, res) => {
+    const weekOf = mondayOf(String((req.body as Record<string, string>)['weekOf'] || nextWeekOf()));
+    const approved = listDrafts({ weekOf, status: 'approved', latestOnly: true });
+    const job = startJob('publish', `Publish ${approved.length} approved for ${weekOf}`, async (log) => {
+      let ok = 0;
+      const failed: string[] = [];
+      for (const d of approved) {
+        log(`--- ${d.slot}`);
+        try {
+          await publishDraft(d.id, { log });
+          ok++;
+        } catch (err) {
+          failed.push(`${d.slot}: ${(err as Error).message}`);
+          log(`${d.slot}: failed: ${(err as Error).message}`);
+        }
+      }
+      log(`done: ${ok} scheduled${failed.length ? `, ${failed.length} failed` : ''}`);
+      if (failed.length) throw new Error(failed.join('; '));
+      return ok;
+    });
+    res.redirect(`/jobs/${job.id}?next=${encodeURIComponent(`/?week=${weekOf}`)}`);
   });
 
   app.post('/drafts/:id/unpublish', (req, res) => {

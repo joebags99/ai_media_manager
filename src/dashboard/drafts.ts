@@ -16,6 +16,7 @@ import { reviseDraft } from '../revise.js';
 import { TEST_MODE } from '../config.js';
 import { defaultPlatforms } from '../publish.js';
 import { buildDigest, sendDigest } from '../notify.js';
+import { metricsForDraft } from '../metrics.js';
 import { badge, empty, esc, notice, pageHead, section } from './html.js';
 
 type Page = (title: string, body: string, active: string) => string;
@@ -100,6 +101,20 @@ function actions(d: Draft, versions: Draft[], brand: Brand): string {
   if (d.status === 'rejected') return notice('info', STATUS_HELP['rejected']!);
   if (d.status === 'archived') return section('In the library', 'Place it into a day; whatever is there already gets shelved instead.', slotPicker(`/library/${d.id}/place`, 'Place', 'primary'));
   return '';
+}
+
+/** What Buffer reports for this draft's posts, once synced. */
+function metricsBlock(d: Draft): string {
+  if (d.status !== 'scheduled' && d.status !== 'posted') return '';
+  const rows = metricsForDraft(d.id);
+  if (!rows.length) return '';
+  return section(
+    'Performance',
+    'From Buffer. Impressions, engagement (likes, comments, shares, saves) and clicks per channel; synced by the weekly run or from the Performance page.',
+    `<table style="max-width:760px"><tr><th>Channel</th><th>Status</th><th>Impressions</th><th>Engagement</th><th>Clicks</th><th></th></tr>${rows
+      .map((r) => `<tr><td>${esc(r.platform)}</td><td class="muted">${esc(r.status)}${r.sentAt ? ` · ${esc(r.sentAt.slice(0, 10))}` : ''}</td><td>${Math.round(r.impressions)}</td><td><b>${Math.round(r.engagement)}</b></td><td>${Math.round(r.clicks)}</td><td>${r.externalLink ? `<a href="${esc(r.externalLink)}" target="_blank">open ↗</a>` : ''}</td></tr>`)
+      .join('')}</table>`,
+  );
 }
 
 /** Shelve / duplicate / recaption, for drafts that are current and not yet in Buffer. */
@@ -209,7 +224,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
           const img = renderUrl(d.renderSquare);
           return `<div class="card tight"><div class="row" style="justify-content:space-between"><b style="font-family:var(--display);font-size:16px">${DAY_NAMES[d.slot]}</b>${badge(d.status)}</div>
             <a href="/drafts/${d.id}" title="${esc(STATUS_HELP[d.status] ?? '')}">${img ? `<img src="${img}?v=${d.version}" alt="" style="margin:10px 0">` : '<p class="muted">not rendered</p>'}</a>
-            <div class="muted">${esc(d.template)}${d.site ? ` · ${esc(d.site)}` : ''} · v${d.version} · $${d.costUsd.toFixed(3)}</div>
+            <div class="muted">${esc(d.template)}${d.site ? ` · ${esc(d.site)}` : ''} · v${d.version} · $${d.costUsd.toFixed(3)}${(() => { const m = d.status === 'posted' || d.status === 'scheduled' ? metricsForDraft(d.id).filter((r) => r.status === 'sent') : []; if (!m.length) return ''; const e = m.reduce((a, r) => a + r.engagement, 0), i = m.reduce((a, r) => a + r.impressions, 0); return ` · <b>${Math.round(e)}</b> eng / ${Math.round(i)} imp`; })()}</div>
             <p style="margin:6px 0 0;font-size:14px">${esc(c.rationale)}</p>
             <div class="row" style="margin-top:10px;gap:8px">${d.status === 'approved' ? `<form method="post" action="/drafts/${d.id}/publish" class="inline" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: schedule this draft 60 days out on its default channels?' : 'LIVE: schedule this draft on its default channels?'}')"><input type="hidden" name="next" value="/?week=${d.weekOf}"><button class="primary small">${TEST_MODE ? 'Test-publish' : 'Publish'}</button></form>` : ''}<a class="btn secondary small" href="/drafts/${d.id}">${d.status === 'pending' ? 'Review' : 'Open'}</a></div></div>`;
         })
@@ -410,6 +425,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         (c.warnings?.length ? notice('warn', `<b>Looks familiar:</b> ${c.warnings.map((w) => esc(w)).join('; ')}. Revise if it is too close.`) : '') +
         (TEXT_HEAVY.has(d.template) && d.status === 'pending' ? `<p class="hint" style="margin:4px 0 12px">Mostly text on the image. Fine for organic posts; if you ever boost this one, Meta tends to limit reach on text-heavy images.</p>` : '') +
         actions(d, versions, brand) +
+        metricsBlock(d) +
         utilities(d) +
         textEditor(d, c, brand) +
         section('Captions', 'What goes with the image on each channel. Hashtags are appended for Instagram and LinkedIn; Google Business gets none and a Learn more button instead.', `<div class="grid">${caption('instagram', 'portrait image')}${caption('facebook', 'square image')}${caption('linkedin', 'square image')}${caption('googlebusiness', 'square · no hashtags')}</div>`) +

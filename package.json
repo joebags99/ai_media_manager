@@ -18,7 +18,8 @@
     "weekly": "tsx src/cli.ts weekly",
     "revise": "tsx src/cli.ts revise",
     "publish": "tsx src/cli.ts publish",
-    "buffer:delete": "tsx src/cli.ts buffer:delete"
+    "buffer:delete": "tsx src/cli.ts buffer:delete",
+    "metrics": "tsx src/cli.ts metrics"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

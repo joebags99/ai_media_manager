@@ -12,6 +12,7 @@ const NAV: [string, string, string][] = [
   ['/sites', 'Sites', 'Client and own sites to screenshot'],
   ['/reviews', 'Reviews', 'Client reviews the quote template draws from'],
   ['/templates', 'Templates', 'The four fixed ad layouts'],
+  ['/performance', 'Performance', 'How sent posts did, by template and channel'],
   ['/buffer', 'Buffer', 'Connection and channels'],
   ['/jobs', 'Jobs', 'Everything that ran this session'],
 ];

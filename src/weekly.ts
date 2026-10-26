@@ -11,6 +11,7 @@ import { planWeek, readPlan, writePlan, type Plan } from './plan.js';
 import { renderDraft, type TemplateName } from './render.js';
 import type { DraftContent } from './validate.js';
 import { sendDigest } from './notify.js';
+import { syncMetrics } from './metrics.js';
 
 export interface WeeklyOptions {
   weekOf?: string;
@@ -23,6 +24,8 @@ export interface WeeklyOptions {
   digest?: boolean;
   /** Generate only these slots (others untouched). */
   only?: Slot[];
+  /** Pull Buffer metrics before planning. Default true when a token is set. */
+  metrics?: boolean;
 }
 
 export async function renderDraftRow(draft: Draft): Promise<Draft> {
@@ -57,6 +60,13 @@ export async function runWeekly(opts: WeeklyOptions = {}): Promise<{ weekOf: str
   let cost = 0;
 
   try {
+    if (process.env.BUFFER_ACCESS_TOKEN?.trim() && opts.metrics !== false) {
+      try {
+        await syncMetrics({ log });
+      } catch (err) {
+        log(`metrics sync skipped: ${(err as Error).message}`);
+      }
+    }
     const plan = await ensurePlan(weekOf, log);
     cost += plan.claude?.costUsd ?? 0;
 

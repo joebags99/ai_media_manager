@@ -9,6 +9,7 @@ import { listSites, type Site } from './sites.js';
 import { recentDraftSummaries, slotDate, SLOTS, type Slot } from './db.js';
 import { holidayOn, seasonFor, type Holiday } from './holidays.js';
 import { listReviews } from './reviews.js';
+import { performanceBrief } from './metrics.js';
 import { loadBrand, type Brand } from './render.js';
 
 // One plan per week: data/calendar/<weekOf>.json (the older single data/calendar.json is
@@ -189,7 +190,9 @@ Holidays this week:
 ${holidayLines.length ? holidayLines.join('\n') : '- none'}
 A day marked "(no post)" must be template "none". A holiday worth posting on gets template "holiday": a short greeting with a little Daedabyte flavor, no pitch. Subjects for other days in a holiday week may nod to the season lightly or not at all.${seasonal ? ` The week is in the run-up to a ${seasonal} theme; subjects may nod to the season.` : ''}
 Rules: vary templates across the week (no template three times, no two in a row), spread sites out, prefer sites not used recently. Sites of kind "own" are the studio's own site: posts about them speak in the first person and never present them as a client or attach client proof points. Client sites with permissionToName=false must stay anonymous in the subject. Keep subjects concrete and specific to the site or proof point. Return only JSON.`;
-  const user = `Week of ${weekOf}.\n\nSites:\n${JSON.stringify(sites, null, 1)}\n\nRecent posts (avoid repeating):\n${JSON.stringify(recent, null, 1)}`;
+  const brief = performanceBrief();
+  if (brief) log('planner has performance data from Buffer');
+  const user = `Week of ${weekOf}.\n\nSites:\n${JSON.stringify(sites, null, 1)}\n\nRecent posts (avoid repeating):\n${JSON.stringify(recent, null, 1)}${brief ? `\n\n${brief}` : ''}`;
   const r = await askJson<{ days: PlanDay[] }>({ system, messages: [{ role: 'user', content: user }], schema: SCHEMA, effort: 'medium', maxTokens: 2048 });
   const bySlot = new Map(r.data.days.map((d) => [d.slot, d]));
   const fallback = defaultPlan(weekOf, brand, sites, reviews.length);

@@ -5,6 +5,7 @@ import { startDashboard } from './dashboard.js';
 import { runWeekly } from './weekly.js';
 import { reviseDraft } from './revise.js';
 import { publishDraft, deleteBufferPosts } from './publish.js';
+import { syncMetrics } from './metrics.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -14,6 +15,7 @@ const usage = `Usage:
   npm run weekly [-- YYYY-MM-DD] plan -> capture -> generate -> render
   npm run publish -- <draftId>   schedule one approved draft to Buffer
   npm run buffer:delete -- <postId...>   remove Buffer posts (the logged cleanup)
+  npm run metrics                pull post performance from Buffer
   npm run revise -- <draftId> "feedback"   new version from feedback`;
 
 switch (cmd) {
@@ -61,6 +63,10 @@ switch (cmd) {
       process.exit(1);
     }
     await deleteBufferPosts(args);
+    break;
+  }
+  case 'metrics': {
+    await syncMetrics({ log: (l) => console.log(`[metrics] ${l}`), minAgeHours: 0 });
     break;
   }
   default:

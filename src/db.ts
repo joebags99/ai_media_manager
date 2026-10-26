@@ -110,7 +110,7 @@ export function useDb(file: string): Database.Database {
 const now = () => new Date().toISOString();
 
 export type NewDraft = Pick<Draft, 'weekOf' | 'slot' | 'site' | 'template' | 'contentJson' | 'generationContext' | 'costUsd'> &
-  Partial<Pick<Draft, 'status' | 'version' | 'renderSquare' | 'renderPortrait' | 'feedback' | 'bufferPostIds'>>;
+  Partial<Pick<Draft, 'status' | 'version' | 'renderSquare' | 'renderPortrait' | 'feedback' | 'bufferPostIds' | 'scheduledAt'>>;
 
 export function insertDraft(d: NewDraft): Draft {
   const row: Draft = {

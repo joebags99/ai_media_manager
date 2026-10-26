@@ -110,6 +110,10 @@
           "prod": "Cognito"
         }
       },
+      "metrics": {
+        "file": "src/metrics.ts",
+        "does": "Pull per-post metrics from Buffer (post { status sentAt metrics }) for scheduled/posted drafts into a metrics table; move scheduled -> posted when every post is sent; roll up by template and channel; hand the planner a performance brief once 8+ posts have been sent. Runs at the start of the weekly run and from the Performance page."
+      },
       "notify": {
         "file": "src/notify.ts",
         "does": "After a weekly run, send one digest with thumbnails and a link to the dashboard. Always written to data/digests/<weekOf>.html and viewable at /digest/<weekOf>; emailed with nodemailer when SMTP_URL and DIGEST_TO are set (Ethereal locally, SES SMTP in prod). nodemailer is the one dependency beyond the original list."
@@ -174,7 +178,7 @@
       "revising -> pending": "revise.ts produces a new version",
       "pending -> rejected": "reviewer clicks reject",
       "approved -> scheduled": "publish.ts succeeds",
-      "scheduled -> posted": "optional poll of Buffer status",
+      "scheduled -> posted": "metrics sync sees every Buffer post as sent",
       "any -> error": "unhandled failure; message stored"
     },
     "weeklyRun": [

@@ -120,3 +120,27 @@ export async function deletePost(cfg: BufferConfig, id: string): Promise<void> {
   const d = await gql<{ deletePost: { __typename: string; id?: string; message?: string } }>(cfg, DELETE_POST, { input: { id } });
   if (d.deletePost.__typename !== 'DeletePostSuccess') throw new Error(`deletePost ${id}: ${d.deletePost.message ?? 'unknown error'}`);
 }
+
+// ---- Metrics -------------------------------------------------------------------------
+// Post { status, sentAt, externalLink, metrics: [PostMetric { type, value, unit }], metricsUpdatedAt }
+export interface PostMetrics {
+  id: string;
+  status: string;
+  sentAt: string | null;
+  externalLink: string | null;
+  metricsUpdatedAt: string | null;
+  /** metric type -> value, e.g. impressions, reach, likes, comments, shares, clicks */
+  values: Record<string, number>;
+}
+
+const POST_METRICS = `query ($input: PostInput!) {
+  post(input: $input) { id status sentAt externalLink metricsUpdatedAt metrics { type value unit } }
+}`;
+
+export async function getPostMetrics(cfg: BufferConfig, id: string): Promise<PostMetrics> {
+  const d = await gql<{ post: { id: string; status: string; sentAt: string | null; externalLink: string | null; metricsUpdatedAt: string | null; metrics: { type: string; value: number; unit: string }[] | null } }>(cfg, POST_METRICS, { input: { id } });
+  const p = d.post;
+  const values: Record<string, number> = {};
+  for (const m of p.metrics ?? []) values[m.type] = m.value;
+  return { id: p.id, status: p.status, sentAt: p.sentAt, externalLink: p.externalLink, metricsUpdatedAt: p.metricsUpdatedAt, values };
+}

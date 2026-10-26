@@ -20,6 +20,7 @@ const fakeAsk: Ask = async <T,>(call: JsonCall) => {
     slots: { headline, accentWord: headline.split(' ')[2]!.replace('.', '') },
     crop: { screenshot: 'hero-desktop.png', region: null, treatment: 'framed' },
     captions: { instagram: 'A. Link in bio.', facebook: 'B. https://daedabyte.com', linkedin: 'C. https://daedabyte.com', googlebusiness: 'D.' },
+    alternates: { instagram: 'A2. Link in bio.', facebook: 'B2.', linkedin: 'C2.', googlebusiness: 'D2.' },
     hashtags: { instagram: ['#Daedabyte', '#WebDesign', '#SmallBusiness', '#SEO', '#MtJackson'], facebook: ['#Daedabyte'], linkedin: ['#Daedabyte', '#WebDesign', '#SmallBusiness'] },
     rationale: 'Fake.',
   };

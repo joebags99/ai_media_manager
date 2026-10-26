@@ -14,7 +14,7 @@ import { regenerateCaptions } from '../generate.js';
 import { slotPicker } from './library.js';
 import { reviseDraft } from '../revise.js';
 import { TEST_MODE } from '../config.js';
-import { defaultPlatforms } from '../publish.js';
+import { defaultPlatforms, captionFor, firstCommentFor } from '../publish.js';
 import { buildDigest, sendDigest } from '../notify.js';
 import { metricsForDraft } from '../metrics.js';
 import { badge, empty, esc, notice, pageHead, section } from './html.js';
@@ -287,6 +287,22 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
       res.status(400).send(page('Draft', pageHead('Not shelved', esc((err as Error).message), `<a class="btn secondary" href="/drafts/${id}">Back</a>`), '/'));
     }
   });
+  app.post('/drafts/:id/caption-swap', (req, res) => {
+    const d = getDraft(String(req.params['id']));
+    const p = String((req.body as Record<string, string>)['platform'] ?? '') as keyof DraftContent['captions'];
+    if (!d || !['instagram', 'facebook', 'linkedin', 'googlebusiness'].includes(p)) {
+      res.status(404).send('unknown draft or platform');
+      return;
+    }
+    const c = JSON.parse(d.contentJson) as DraftContent;
+    if (c.alternates?.[p]) {
+      const main = c.captions[p];
+      c.captions[p] = c.alternates[p];
+      c.alternates[p] = main;
+      updateDraft(d.id, { contentJson: JSON.stringify(c) });
+    }
+    res.redirect(`/drafts/${d.id}`);
+  });
   app.post('/drafts/:id/delete', (req, res) => {
     const id = String(req.params['id']);
     const d = getDraft(id);
@@ -403,9 +419,15 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
       const ctx = JSON.parse(d.generationContext) as { plan?: PlanDay; calls?: { costUsd: number }[] };
       const sq = renderUrl(d.renderSquare);
       const pt = renderUrl(d.renderPortrait);
+      const canSwap = ['pending', 'approved', 'archived'].includes(d.status);
       const caption = (p: keyof DraftContent['captions'], note: string) => {
-        const tags = p === 'googlebusiness' ? [] : c.hashtags[p];
-        return `<div class="card tight"><div class="row" style="justify-content:space-between"><b>${p}</b><span class="muted">${note}</span></div><p style="white-space:pre-wrap;margin:6px 0">${esc(c.captions[p])}</p>${tags.length ? `<p class="muted" style="margin:0">${esc(tags.join(' '))}</p>` : ''}</div>`;
+        const text = captionFor(c, p, brand);
+        const fc = firstCommentFor(c, p, brand);
+        const alt = c.alternates?.[p];
+        return `<div class="card tight"><div class="row" style="justify-content:space-between"><b>${p}</b><span class="muted">${note}</span></div>
+          <p style="white-space:pre-wrap;margin:6px 0">${esc(text)}</p>
+          ${fc ? `<p class="muted" style="margin:0 0 6px;padding-left:10px;border-left:3px solid var(--lavender)"><span class="eyebrow" style="font-size:10px">first comment</span><br>${esc(fc)}</p>` : ''}
+          ${alt ? `<details style="margin-top:6px"><summary>Option B</summary><p style="white-space:pre-wrap;margin:6px 0;color:var(--ash)">${esc(alt)}</p>${canSwap ? `<form method="post" action="/drafts/${d.id}/caption-swap" class="inline"><input type="hidden" name="platform" value="${p}"><button class="secondary small">Use option B</button></form>` : ''}</details>` : ''}</div>`;
       };
       const body =
         pageHead(
@@ -428,7 +450,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
         metricsBlock(d) +
         utilities(d) +
         textEditor(d, c, brand) +
-        section('Captions', 'What goes with the image on each channel. Hashtags are appended for Instagram and LinkedIn; Google Business gets none and a Learn more button instead.', `<div class="grid">${caption('instagram', 'portrait image')}${caption('facebook', 'square image')}${caption('linkedin', 'square image')}${caption('googlebusiness', 'square · no hashtags')}</div>`) +
+        section('Captions', 'Exactly what Buffer will post per channel. Hashtags and links go to a first comment where brand.json says so (shown boxed). Each has an Option B from Claude; Use option B swaps them.', `<div class="grid">${caption('instagram', 'portrait image')}${caption('facebook', 'square image')}${caption('linkedin', 'square image')}${caption('googlebusiness', 'square · no hashtags')}</div>`) +
         (await cropEditor(d, c)) +
         section('Under the hood', '', `<details><summary>Slot values and crop</summary><pre class="muted">${esc(JSON.stringify({ slots: c.slots, crop: c.crop }, null, 2))}</pre></details>
           <details><summary>Claude conversation (${ctx.calls?.length ?? 0} call(s), stored on the draft for replay)</summary><pre class="muted" style="max-height:500px;overflow:auto">${esc(JSON.stringify(JSON.parse(d.generationContext), null, 2))}</pre></details>`);

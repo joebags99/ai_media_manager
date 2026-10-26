@@ -98,7 +98,7 @@
       },
       "publish": {
         "file": "src/publish.ts",
-        "does": "Serve the renders at PUBLIC_BASE_URL (Buffer fetches images by URL), create a scheduled Buffer post per channel with the platform-specific caption, store Buffer post IDs.",
+        "does": "Serve the renders at PUBLIC_BASE_URL (Buffer fetches images by URL), create a scheduled Buffer post per channel with the platform-specific caption, store Buffer post IDs. brand.json platforms[*].hashtagsIn / linkIn move hashtags or links into the post's first comment (Instagram hashtags and LinkedIn links by default).",
         "guard": "Only runs on status=approved. In TEST_MODE schedules 60 days out and logs the delete command."
       },
       "dashboard": {
@@ -212,6 +212,7 @@
         "linkedin": "string",
         "googlebusiness": "string"
       },
+      "alternates": "same shape: a second caption per channel with a different angle; the reviewer can swap it in",
       "hashtags": {
         "instagram": "string[]",
         "facebook": "string[]",

@@ -22,7 +22,7 @@ export const MAX_IMAGES = 6;
 export const responseSchema = (template: string, slots: string[]) => ({
   type: 'object',
   additionalProperties: false,
-  required: ['template', 'slots', 'crop', 'captions', 'hashtags', 'rationale'],
+  required: ['template', 'slots', 'crop', 'captions', 'alternates', 'hashtags', 'rationale'],
   properties: {
     template: { type: 'string', enum: [template] },
     slots: {
@@ -45,6 +45,13 @@ export const responseSchema = (template: string, slots: string[]) => ({
       type: 'object',
       additionalProperties: false,
       required: ['instagram', 'facebook', 'linkedin', 'googlebusiness'],
+      properties: { instagram: { type: 'string' }, facebook: { type: 'string' }, linkedin: { type: 'string' }, googlebusiness: { type: 'string' } },
+    },
+    alternates: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['instagram', 'facebook', 'linkedin', 'googlebusiness'],
+      description: 'a second caption per channel with a different angle (same rules)',
       properties: { instagram: { type: 'string' }, facebook: { type: 'string' }, linkedin: { type: 'string' }, googlebusiness: { type: 'string' } },
     },
     hashtags: {
@@ -97,6 +104,7 @@ CAPTIONS
 - facebook: 1-3 sentences, may include the URL inline, ${platforms['facebook']!.hashtags[0]}-${platforms['facebook']!.hashtags[1]} hashtags.
 - linkedin: 2-4 sentences, slightly more professional, URL inline allowed, ${platforms['linkedin']!.hashtags[0]}-${platforms['linkedin']!.hashtags[1]} hashtags.
 - googlebusiness: 1-2 sentences, NO hashtags, never say "link in bio" (there is a button).
+- alternates: a second caption for each channel with a different angle (e.g. a question instead of a statement, a detail instead of the big picture). Same rules. The reviewer picks one.
 Hashtags: always include ${hashtags['always']!.join(' ')}; add from region ${hashtags['region']!.join(' ')} and service ${hashtags['service']!.join(' ')} as fits. Each must start with # and contain only letters, digits, underscores.
 
 SITES
@@ -274,9 +282,10 @@ export function repeatWarnings(template: string, slots: Record<string, string>, 
 const CAPTION_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['captions', 'hashtags'],
+  required: ['captions', 'alternates', 'hashtags'],
   properties: {
     captions: { type: 'object', additionalProperties: false, required: ['instagram', 'facebook', 'linkedin', 'googlebusiness'], properties: { instagram: { type: 'string' }, facebook: { type: 'string' }, linkedin: { type: 'string' }, googlebusiness: { type: 'string' } } },
+    alternates: { type: 'object', additionalProperties: false, required: ['instagram', 'facebook', 'linkedin', 'googlebusiness'], properties: { instagram: { type: 'string' }, facebook: { type: 'string' }, linkedin: { type: 'string' }, googlebusiness: { type: 'string' } } },
     hashtags: { type: 'object', additionalProperties: false, required: ['instagram', 'facebook', 'linkedin'], properties: { instagram: { type: 'array', items: { type: 'string' } }, facebook: { type: 'array', items: { type: 'string' } }, linkedin: { type: 'array', items: { type: 'string' } } } },
   },
 };
@@ -294,11 +303,11 @@ export async function regenerateCaptions(id: string, note = '', opts: GenerateOp
   const messages: MessageParam[] = [
     {
       role: 'user',
-      content: `Write new captions and hashtags for this existing ${d.template} post. The image text is fixed:\n${JSON.stringify(c.slots, null, 1)}\n${ctx.plan?.subject ? `Subject: ${ctx.plan.subject}\n` : ''}${note ? `Reviewer note: ${note}\n` : 'Make them different from the current ones in angle and wording.\n'}Current captions (do not reuse):\n${JSON.stringify(c.captions, null, 1)}\nReturn only captions and hashtags.`,
+      content: `Write new captions and hashtags for this existing ${d.template} post. The image text is fixed:\n${JSON.stringify(c.slots, null, 1)}\n${ctx.plan?.subject ? `Subject: ${ctx.plan.subject}\n` : ''}${note ? `Reviewer note: ${note}\n` : 'Make them different from the current ones in angle and wording.\n'}Current captions (do not reuse):\n${JSON.stringify(c.captions, null, 1)}\nReturn captions, a second set of alternates with a different angle, and hashtags.`,
     },
   ];
-  const r = await ask<Pick<DraftContent, 'captions' | 'hashtags'>>({ system, messages, schema: CAPTION_SCHEMA, effort: 'low', maxTokens: 2048 });
-  const next: DraftContent = { ...c, captions: r.data.captions, hashtags: r.data.hashtags };
+  const r = await ask<Pick<DraftContent, 'captions' | 'alternates' | 'hashtags'>>({ system, messages, schema: CAPTION_SCHEMA, effort: 'low', maxTokens: 2048 });
+  const next: DraftContent = { ...c, captions: r.data.captions, alternates: r.data.alternates ?? null, hashtags: r.data.hashtags };
   const errors = validateContent(brand, next, {}, d.template).filter((e) => /caption|hashtag/.test(e));
   if (errors.length) throw new Error(`New captions failed validation: ${errors.join('; ')}`);
   log(`captions rewritten ($${r.costUsd.toFixed(4)})`);

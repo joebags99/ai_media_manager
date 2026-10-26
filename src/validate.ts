@@ -16,6 +16,8 @@ export interface DraftContent {
   captions: Record<'instagram' | 'facebook' | 'linkedin' | 'googlebusiness', string>;
   hashtags: Record<'instagram' | 'facebook' | 'linkedin', string[]>;
   rationale: string;
+  /** Second caption option per channel; "Use this" on the draft page swaps it in. */
+  alternates?: Record<'instagram' | 'facebook' | 'linkedin' | 'googlebusiness', string> | null;
   /** Seasonal theme applied at render time (set from the plan, not by Claude). */
   theme?: string | null;
   /** Image alt text for Buffer; generated, editable on the draft page. */
@@ -102,6 +104,20 @@ export function validateContent(brand: Brand, c: DraftContent, shots: ShotDims, 
   const gb = c.captions?.googlebusiness ?? '';
   if (/#\w/.test(gb)) errors.push('googlebusiness caption contains a hashtag');
   if (/link in (the )?bio/i.test(gb)) errors.push('googlebusiness caption says "link in bio"');
+  if (c.alternates) {
+    for (const p of ['instagram', 'facebook', 'linkedin', 'googlebusiness'] as const) {
+      const t = c.alternates[p];
+      if (typeof t !== 'string' || !t.trim()) errors.push(`alternate caption for ${p} is missing`);
+      else if (t.trim() === (c.captions?.[p] ?? '').trim()) errors.push(`alternate caption for ${p} is identical to the main one`);
+      for (const b of banned) {
+        const hit = /^[\w-]+$/.test(b) ? new RegExp(`\\b${b.replace(/[-]/g, '\\-')}\\b`, 'i').test(t ?? '') : (t ?? '').includes(b);
+        if (hit) errors.push(`alternate caption ${p} contains banned "${b}"`);
+      }
+    }
+    const ga = c.alternates.googlebusiness ?? '';
+    if (/#\w/.test(ga)) errors.push('alternate googlebusiness caption contains a hashtag');
+    if (/link in (the )?bio/i.test(ga)) errors.push('alternate googlebusiness caption says "link in bio"');
+  }
 
   if (c.template === 'mobile' && c.crop?.screenshot && !/-mobile\.png$/.test(c.crop.screenshot)) errors.push('mobile template needs a -mobile.png screenshot');
   if (c.template === 'backdrop' && c.crop?.treatment !== 'dimmed') errors.push('backdrop template needs crop.treatment "dimmed"');

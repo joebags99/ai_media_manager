@@ -203,7 +203,8 @@
         5,
         8
       ],
-      "link": "bio"
+      "link": "bio",
+      "hashtagsIn": "firstComment"
     },
     "facebook": {
       "size": "square",
@@ -211,7 +212,8 @@
         0,
         3
       ],
-      "link": "inline"
+      "link": "inline",
+      "hashtagsIn": "caption"
     },
     "linkedin": {
       "size": "square",
@@ -219,7 +221,8 @@
         3,
         5
       ],
-      "link": "inline"
+      "link": "inline",
+      "linkIn": "firstComment"
     },
     "googlebusiness": {
       "size": "square",
@@ -238,7 +241,8 @@
         "contrast"
       ],
       "maxPerWeek": 2
-    }
+    },
+    "_placement": "hashtagsIn: caption|firstComment (where hashtags go). linkIn: caption|firstComment (LinkedIn: move URLs out of the caption into the first comment). Edit here; publish.ts reads these."
   },
   "hashtags": {
     "always": [

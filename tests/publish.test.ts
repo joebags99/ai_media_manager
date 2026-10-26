@@ -81,7 +81,7 @@ describe('publish guardrails', () => {
     }
     const ig = inputs.find((i) => (i.metadata as { instagram?: unknown }).instagram)!;
     expect(ig.assets[0]!.image.url).toContain('portrait');
-    expect(ig.text).toContain('#Daedabyte');
+    expect((ig.metadata as { instagram: { firstComment: string } }).instagram.firstComment).toContain('#Daedabyte'); // hashtags ride in the first comment per brand.json
     const gb = inputs.find((i) => (i.metadata as { google?: unknown }).google)!;
     expect(gb.text).not.toMatch(/#/);
     const after = getDraft(d.id)!;

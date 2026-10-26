@@ -67,7 +67,7 @@ describe('guardrails', () => {
     const d = mk('2026-12-07', 'mon', 'Call us first.');
     const fake: Ask = async <T,>(call: JsonCall) => {
       expect(String(call.messages[0]!.content)).toMatch(/Call us first/);
-      return { data: { captions: { instagram: 'New IG. Link in bio.', facebook: 'New FB.', linkedin: 'New LI.', googlebusiness: 'New GB.' }, hashtags: { instagram: ['#Daedabyte', '#WebDesign', '#SmallBusiness', '#SEO', '#MtJackson'], facebook: [], linkedin: ['#Daedabyte', '#WebDesign', '#SmallBusiness'] } } as T, request: {}, response: {} as JsonResult<T>['response'], costUsd: 0.01, model: 'fake' };
+      return { data: { captions: { instagram: 'New IG. Link in bio.', facebook: 'New FB.', linkedin: 'New LI.', googlebusiness: 'New GB.' }, alternates: { instagram: 'Alt IG. Link in bio.', facebook: 'Alt FB.', linkedin: 'Alt LI.', googlebusiness: 'Alt GB.' }, hashtags: { instagram: ['#Daedabyte', '#WebDesign', '#SmallBusiness', '#SEO', '#MtJackson'], facebook: [], linkedin: ['#Daedabyte', '#WebDesign', '#SmallBusiness'] } } as T, request: {}, response: {} as JsonResult<T>['response'], costUsd: 0.01, model: 'fake' };
     };
     const u = await regenerateCaptions(d.id, 'punchier', { ask: fake });
     const c = JSON.parse(u.contentJson);

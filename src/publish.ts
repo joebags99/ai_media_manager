@@ -80,11 +80,46 @@ export function scheduleFor(draft: Pick<Draft, 'weekOf' | 'slot'>, timeZone: str
   return target > earliest ? target : earliest;
 }
 
-export function captionFor(c: DraftContent, platform: Platform): string {
-  const text = c.captions[platform].trim();
+const URL_RE = /https?:\/\/[^\s)]+/g;
+
+/** Where hashtags and links go for a platform, from brand.json platforms. */
+export function placement(brand: Brand, platform: Platform): { hashtagsIn: 'caption' | 'firstComment'; linkIn: 'caption' | 'firstComment' } {
+  const p = (brand['platforms'] as Record<string, { hashtagsIn?: string; linkIn?: string }>)[platform] ?? {};
+  return { hashtagsIn: p.hashtagsIn === 'firstComment' ? 'firstComment' : 'caption', linkIn: p.linkIn === 'firstComment' ? 'firstComment' : 'caption' };
+}
+
+/** The post text: caption, plus hashtags unless they go to the first comment, minus links if they do. */
+export function captionFor(c: DraftContent, platform: Platform, brand?: Brand): string {
+  let text = c.captions[platform].trim();
   if (platform === 'googlebusiness') return text;
+  const place = brand ? placement(brand, platform) : { hashtagsIn: 'caption' as const, linkIn: 'caption' as const };
+  if (place.linkIn === 'firstComment') {
+    // "earns inquiries: https://x. Ask" -> "earns inquiries. Ask"; a bare URL just disappears.
+    text = text
+      .replace(/\s*[:\-\u2013\u2014]\s*https?:\/\/[^\s)]+[.,;:!?]?/g, '.')
+      .replace(URL_RE, '')
+      .replace(/[ \t]+([.,;:!?])/g, '$1')
+      .replace(/\.{2,}/g, '.')
+      .replace(/ {2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
   const tags = c.hashtags[platform] ?? [];
-  return tags.length ? `${text}\n\n${tags.join(' ')}` : text;
+  return tags.length && place.hashtagsIn === 'caption' ? `${text}\n\n${tags.join(' ')}` : text;
+}
+
+/** The first comment: hashtags and/or links moved out of the caption; empty when nothing moves. */
+export function firstCommentFor(c: DraftContent, platform: Platform, brand: Brand): string {
+  if (platform === 'googlebusiness') return '';
+  const place = placement(brand, platform);
+  const parts: string[] = [];
+  if (place.linkIn === 'firstComment') {
+    const links = [...new Set((c.captions[platform].match(URL_RE) ?? []).map((u) => u.replace(/[.,;:!?]+$/, '')))];
+    if (links.length) parts.push(links.join('\n'));
+    else parts.push(brand.site);
+  }
+  if (place.hashtagsIn === 'firstComment' && c.hashtags[platform]?.length) parts.push(c.hashtags[platform].join(' '));
+  return parts.join('\n\n');
 }
 
 export function altTextFor(c: DraftContent, brand: Brand): string {
@@ -98,15 +133,17 @@ export function buildPostInput(draft: Draft, c: DraftContent, platform: Platform
   const file = platform === 'instagram' ? draft.renderPortrait : draft.renderSquare;
   if (!file) throw new Error(`Draft has no ${platform === 'instagram' ? 'portrait' : 'square'} render`);
   const url = `${base}/renders/${path.basename(file)}`;
+  const firstComment = firstCommentFor(c, platform, brand);
+  const fc = firstComment ? { firstComment } : {};
   const metadata: Record<string, unknown> = {
-    instagram: { instagram: { type: 'post', shouldShareToFeed: false } },
-    facebook: { facebook: { type: 'post' } },
-    linkedin: { linkedin: {} },
+    instagram: { instagram: { type: 'post', shouldShareToFeed: false, ...fc } },
+    facebook: { facebook: { type: 'post', ...fc } },
+    linkedin: { linkedin: { ...fc } },
     googlebusiness: { google: { type: 'whats_new', detailsWhatsNew: { button: 'learn_more', link: brand['contact'] as string } } },
   }[platform];
   return {
     channelId,
-    text: captionFor(c, platform),
+    text: captionFor(c, platform, brand),
     assets: [{ image: { url, metadata: { altText: altTextFor(c, brand) } } }],
     mode: 'customScheduled',
     dueAt,

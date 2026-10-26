@@ -47,7 +47,9 @@ export function registerReviewRoutes(app: Express, page: Page, wrap: Wrap): void
       try {
         const key = process.env.GOOGLE_PLACES_API_KEY?.trim() ?? '';
         const hits = await findPlaceId(key, q);
-        const text = hits.length ? hits.map((h) => `${h.id}\n  ${h.name} \u2014 ${h.address}`).join('\n') : 'No places found for that search.';
+        const text = hits.length
+          ? hits.map((h) => `${h.id}\n  ${h.name} \u2014 ${h.address}`).join('\n')
+          : 'No places found. If the Business Profile is a service-area business (no public street address), Google does not include it in the Places API and there is no Place ID to find; use the Business Profile API route instead, or paste reviews by hand below.';
         res.redirect(`/reviews?found=${encodeURIComponent(text)}`);
       } catch (err) {
         res.redirect(`/reviews?found=${encodeURIComponent((err as Error).message)}`);

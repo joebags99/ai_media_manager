@@ -6,7 +6,8 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { ROOT } from './config.js';
 
-export const REVIEWS_PATH = path.join(ROOT, 'brand', 'reviews.json');
+// Tests point REVIEWS_FILE at a scratch file so they never read or write the real list.
+export const REVIEWS_PATH = process.env.REVIEWS_FILE?.trim() || path.join(ROOT, 'brand', 'reviews.json');
 
 export interface Review {
   id: string;

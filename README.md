@@ -12,6 +12,7 @@ npm install
 npx playwright install chromium
 cp .env.example .env     # fill in ANTHROPIC_API_KEY and BUFFER_ACCESS_TOKEN
 npm run review           # dashboard on http://localhost:3000
+cloudflared tunnel --url http://localhost:3000
 ```
 
 Publishing needs `PUBLIC_BASE_URL`: Buffer fetches post images by URL, so the dashboard must be

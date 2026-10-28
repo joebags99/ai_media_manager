@@ -1,5 +1,4 @@
 {
-  "$schema": "./pipeline-spec.schema.json",
   "name": "daedabyte-ad-pipeline",
   "version": "0.1.0",
   "purpose": "Generate one on-brand social ad per weekday for Daedabyte, hold it for human review, and schedule approved posts to Buffer.",
@@ -11,6 +10,7 @@
     "Every image is rendered from a fixed HTML template so brand colors, fonts, and layout never drift.",
     "Claude writes copy and art-directs; it never draws pixels.",
     "Nothing posts without an explicit approval click.",
+    "Every manual step (previewing templates, capturing a site, generating, revising, approving, test publishing, cleaning up test posts) is run and checked from the dashboard. The CLI exists for scheduled automation, not for day-to-day testing.",
     "Single-tenant now, but every record carries an orgId so multi-tenant is additive later."
   ],
   "nonGoals": [
@@ -22,10 +22,10 @@
 
   "inputs": {
     "brand": "brand/brand.json",
-    "brandVoice": "brand/brand.md",
     "exampleAds": "brand/examples/*.png",
     "sites": "sites/*.json",
-    "calendar": "data/calendar.json"
+    "reviews": "brand/reviews.json (client reviews about Daedabyte, pasted from Google Business or the site via the dashboard; the only source for quote posts, checked verbatim)",
+    "calendar": "data/calendar/<weekOf>.json, one per week (written by the plan step; edited in the dashboard, not by hand)"
   },
 
   "externalServices": {
@@ -35,7 +35,7 @@
       "notes": "Check docs.claude.com for the current model string and image-input format before coding. Return strict JSON; no prose."
     },
     "buffer": {
-      "use": "upload media, create scheduled post, read channel schedule, delete post",
+      "use": "create scheduled post (images by public URL; the current API has no upload endpoint), delete post",
       "auth": "BUFFER_ACCESS_TOKEN",
       "organizationId": "6995da98b50c73bfc1a845f1",
       "channels": {
@@ -73,8 +73,13 @@
       "capture": {
         "file": "src/capture.ts",
         "does": "Load a site recipe, dismiss banners, wait for selectors, capture desktop (1440px) and mobile (390px) PNGs for each named section.",
-        "input": "sites/<slug>.json",
+        "input": "sites/<slug>.json (created and edited from the dashboard Sites page)",
         "output": "data/screenshots/<slug>/<section>-<viewport>.png + manifest.json"
+      },
+      "plan": {
+        "file": "src/plan.ts",
+        "does": "Ask Claude for the week (Monday to Sunday): one template + subject (+ optional site) per day, given brand.json, the sites (kind, captured sections), recent drafts and the US holidays in that week (src/holidays.ts). Weekends are 'none' unless a holiday worth posting on falls there; sombre holidays become 'none'. Holiday and run-up days carry a seasonal theme (brand.json seasonal.themes) that overrides accent colors at render time. Rules: vary templates, quote only with a captured testimonials section, screenshot only with a captured site. Reviewer edits the plan in the dashboard before generation.",
+        "output": "data/calendar/<weekOf>.json"
       },
       "generate": {
         "file": "src/generate.ts",
@@ -93,20 +98,25 @@
       },
       "publish": {
         "file": "src/publish.ts",
-        "does": "Upload render, create a scheduled Buffer post per channel with the platform-specific caption, store Buffer post IDs.",
+        "does": "Serve the renders at PUBLIC_BASE_URL (Buffer fetches images by URL), create a scheduled Buffer post per channel with the platform-specific caption, store Buffer post IDs. brand.json platforms[*].hashtagsIn / linkIn move hashtags or links into the post's first comment (Instagram hashtags and LinkedIn links by default).",
         "guard": "Only runs on status=approved. In TEST_MODE schedules 60 days out and logs the delete command."
       },
       "dashboard": {
         "file": "src/dashboard.ts",
-        "does": "Express app on localhost:3000. Lists pending drafts with image, captions per platform, crop region overlay. Buttons: approve, revise (textarea), reject.",
+        "does": "Express app on localhost:3000. Lists pending drafts with image, captions per platform, crop region overlay. Buttons: approve, revise (textarea), reject. Also the operator console for testing: template previews from fixtures, run capture for a site, run the weekly generation, publish an approved draft in test mode, and delete test posts from Buffer. Long jobs show progress and logs in the page.",
+        "growth": "A minimal shell ships in M2 and gains one page per milestone, so each milestone is checked in the UI rather than from the terminal.",
         "auth": {
           "local": "none",
           "prod": "Cognito"
         }
       },
+      "metrics": {
+        "file": "src/metrics.ts",
+        "does": "Pull per-post metrics from Buffer (post { status sentAt metrics }) for scheduled/posted drafts into a metrics table; move scheduled -> posted when every post is sent; roll up by template and channel; hand the planner a performance brief once 8+ posts have been sent. Runs at the start of the weekly run and from the Performance page."
+      },
       "notify": {
         "file": "src/notify.ts",
-        "does": "After a weekly run, send one digest with thumbnails and a link to the dashboard."
+        "does": "After a weekly run, send one digest with thumbnails and a link to the dashboard. Always written to data/digests/<weekOf>.html and viewable at /digest/<weekOf>; emailed with nodemailer when SMTP_URL and DIGEST_TO are set (Ethereal locally, SES SMTP in prod). nodemailer is the one dependency beyond the original list."
       },
       "cli": {
         "file": "src/cli.ts",
@@ -126,16 +136,16 @@
       "id": "uuid",
       "orgId": "string",
       "weekOf": "ISO date",
-      "slot": "mon|tue|wed|thu|fri",
+      "slot": "mon|tue|wed|thu|fri|sat|sun (weekends empty unless a holiday falls there)",
       "site": "slug or null",
-      "template": "list|stat|quote|screenshot",
+      "template": "list|stat|quote|screenshot|headline|question|tip|holiday|detail|backdrop|mobile|contrast",
       "version": "int",
       "contentJson": "slot values + captions per platform + hashtags + crop",
       "renderSquare": "path",
       "renderPortrait": "path",
       "status": "pending|revising|approved|scheduled|rejected|posted|error",
       "feedback": "text or null",
-      "generationContext": "JSON of the messages sent to Claude, for replay",
+      "generationContext": "JSON: plan day + messages sent to Claude (images stored as {type:image_ref,file} markers, reloaded on replay) + every request/response/cost",
       "bufferPostIds": "JSON map channel -> postId",
       "scheduledAt": "ISO datetime or null",
       "createdAt": "ISO datetime",
@@ -154,6 +164,7 @@
       "name": "string",
       "url": "string",
       "industry": "string",
+      "kind": "own|client (own = Daedabyte's site: first-person copy, never presented as a client)",
       "permissionToName": "boolean",
       "recipe": "JSON: dismiss selectors, waitFor selectors, sections[{name, selector}]"
     }
@@ -167,11 +178,11 @@
       "revising -> pending": "revise.ts produces a new version",
       "pending -> rejected": "reviewer clicks reject",
       "approved -> scheduled": "publish.ts succeeds",
-      "scheduled -> posted": "optional poll of Buffer status",
+      "scheduled -> posted": "metrics sync sees every Buffer post as sent",
       "any -> error": "unhandled failure; message stored"
     },
     "weeklyRun": [
-      "Read calendar for next week: five slots, each with template and subject.",
+      "Plan the week with Claude unless data/calendar/<weekOf>.json exists: five slots, each with template, subject and optional site.",
       "Capture screenshots for any site referenced this week (skip if cached under 7 days).",
       "Generate one draft per slot.",
       "Render both sizes per draft.",
@@ -185,10 +196,10 @@
   },
 
   "claudeContract": {
-    "systemPrompt": "brand/brand.md + brand.json (colors, fonts, voice, hashtags, platforms) + template slot schema + the calendar slot's subject",
+    "systemPrompt": "brand.json (name, tagline, colors, fonts, voice rules, proof points, CTAs, hashtags, platforms) + template slot schema + the calendar slot's subject",
     "userContent": "screenshots as image inputs (max 6) + manifest describing each + any prior feedback",
     "responseSchema": {
-      "template": "list|stat|quote|screenshot",
+      "template": "list|stat|quote|screenshot|headline|question|tip|holiday|detail|backdrop|mobile|contrast",
       "slots": "object keyed by that template's slot names",
       "crop": {
         "screenshot": "filename or null",
@@ -201,6 +212,7 @@
         "linkedin": "string",
         "googlebusiness": "string"
       },
+      "alternates": "same shape: a second caption per channel with a different angle; the reviewer can swap it in",
       "hashtags": {
         "instagram": "string[]",
         "facebook": "string[]",
@@ -211,7 +223,7 @@
     "validation": [
       "template must exist in brand.json.templates",
       "every slot for that template must be present and non-empty",
-      "headline slot word count within brand.json.voice.headlineWords",
+      "headline word count within brand.json.voice.headlineWords, applied to screenshot.headline, stat.claim, and list.verdict",
       "no banned words from brand.json.voice.banned",
       "hashtag counts within brand.json.platforms[*].hashtags",
       "googlebusiness caption has no hashtags and no 'link in bio'",
@@ -221,19 +233,21 @@
 
   "templates": {
     "dir": "templates/",
-    "files": ["list.html", "stat.html", "quote.html", "screenshot.html"],
+    "files": ["list.html", "stat.html", "quote.html", "screenshot.html", "headline.html", "question.html", "tip.html", "holiday.html", "detail.html", "backdrop.html", "mobile.html", "contrast.html"],
     "contract": "Each file is self-contained HTML+CSS. Slot values are injected into data-slot attributes. Colors and fonts come from CSS variables set at render time from brand.json. Icon is an inline SVG from brand/assets/icon.svg. Fonts are loaded locally from brand/assets/fonts/ so rendering is deterministic."
   },
 
   "environment": {
-    "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN"],
-    "optional": ["TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "IMAGE_GEN_PROVIDER=none|gemini|openai"]
+    "required": ["ANTHROPIC_API_KEY", "BUFFER_ACCESS_TOKEN", "PUBLIC_BASE_URL (for publishing: where Buffer can fetch renders)"],
+    "optional": ["ANTHROPIC_WORKSPACE_ID (org-level keys only)", "GOOGLE_PLACES_API_KEY + GOOGLE_PLACE_ID (import Google reviews)", "BUFFER_API_URL=https://api.buffer.com", "TEST_MODE=true", "DASHBOARD_PORT=3000", "SMTP_URL", "DIGEST_TO", "DIGEST_FROM", "IMAGE_GEN_PROVIDER=none|gemini|openai", "COST_CEILING_USD=2.00"]
   },
 
   "guardrails": [
     "No code path posts to Buffer from a draft that is not status=approved.",
     "TEST_MODE defaults to true until explicitly flipped.",
+    "brand.json.platforms[*].templates and maxPerWeek limit which drafts default to a platform (Google Business: stat and list only, twice a week); the reviewer can override per draft at publish time.",
     "Client names appear in copy only when sites.<slug>.permissionToName is true.",
+    "Sites with kind=own are Daedabyte's own: copy speaks in the first person and never calls them a client or attaches client proof points to them.",
     "Every Claude request and response is stored on the draft for replay and audit.",
     "Cost per draft is logged; the weekly run aborts if projected cost exceeds COST_CEILING_USD (default 2.00)."
   ],
@@ -247,12 +261,12 @@
     {
       "id": "M2",
       "name": "Capture works",
-      "done": "One client site captured desktop and mobile with a recipe; banners dismissed; manifest written."
+      "done": "One client site captured desktop and mobile with a recipe; banners dismissed; manifest written. Triggered and reviewed from the dashboard shell, which also shows the M1 template previews."
     },
     {
       "id": "M3",
       "name": "Generate + render end to end",
-      "done": "`npm run weekly` produces five pending drafts with renders and valid JSON."
+      "done": "Running the weekly job from the dashboard produces five pending drafts with renders and valid JSON (`npm run weekly` does the same for automation)."
     },
     {
       "id": "M4",
@@ -262,7 +276,7 @@
     {
       "id": "M5",
       "name": "Publish in test mode",
-      "done": "An approved draft appears in Buffer's queue 60 days out on all four channels, then is deleted by the logged command."
+      "done": "An approved draft is test-published from the dashboard, appears in Buffer's queue 60 days out on all four channels, then is deleted from the dashboard (the delete command is still logged)."
     },
     {
       "id": "M6",

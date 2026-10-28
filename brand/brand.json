@@ -15,42 +15,370 @@
     "aegean": "#1D8A99",
     "gold": "#C3B86A"
   },
-  "accentOrder": ["terracotta", "gold", "aegean", "purple"],
+  "accentOrder": [
+    "terracotta",
+    "gold",
+    "aegean",
+    "purple"
+  ],
   "fonts": {
-    "display": { "family": "Inter Tight", "weight": 700, "tracking": "-0.035em" },
-    "body": { "family": "Hanken Grotesk", "weight": 400 },
-    "eyebrow": { "family": "Hanken Grotesk", "weight": 600, "tracking": "0.18em", "transform": "uppercase" }
+    "display": {
+      "family": "Inter Tight",
+      "weight": 700,
+      "tracking": "-0.035em"
+    },
+    "body": {
+      "family": "Hanken Grotesk",
+      "weight": 400
+    },
+    "eyebrow": {
+      "family": "Hanken Grotesk",
+      "weight": 600,
+      "tracking": "0.18em",
+      "transform": "uppercase"
+    }
   },
   "canvas": {
-    "square": [1080, 1080],
-    "portrait": [1080, 1350],
-    "linkedinLink": [1200, 627],
+    "square": [
+      1080,
+      1080
+    ],
+    "portrait": [
+      1080,
+      1350
+    ],
+    "linkedinLink": [
+      1200,
+      627
+    ],
     "paddingPct": 8,
     "rulePx": 4,
     "iconPct": 4
   },
   "templates": {
-    "list": { "slots": ["line1", "line2", "line3", "line4", "verdict"], "align": "left", "bg": "ink" },
-    "stat": { "slots": ["number", "claim", "kicker"], "align": "left", "bg": "ink|screenshotDim" },
-    "quote": { "slots": ["quote", "name", "business"], "align": "center", "bg": "photoWash|bone" },
-    "screenshot": { "slots": ["headline", "accentWord", "crop"], "align": "left", "bg": "ink" }
+    "list": {
+      "slots": [
+        "line1",
+        "line2",
+        "line3",
+        "line4",
+        "verdict"
+      ],
+      "align": "left",
+      "bg": "ink"
+    },
+    "stat": {
+      "slots": [
+        "number",
+        "claim",
+        "kicker"
+      ],
+      "align": "left",
+      "bg": "ink|screenshotDim"
+    },
+    "quote": {
+      "slots": [
+        "quote",
+        "name",
+        "business"
+      ],
+      "align": "center",
+      "bg": "photoWash|bone"
+    },
+    "screenshot": {
+      "slots": [
+        "headline",
+        "accentWord",
+        "crop"
+      ],
+      "align": "left",
+      "bg": "ink"
+    },
+    "headline": {
+      "slots": [
+        "headline",
+        "accentWord",
+        "support"
+      ],
+      "align": "left",
+      "bg": "ink"
+    },
+    "question": {
+      "slots": [
+        "question",
+        "answer"
+      ],
+      "align": "left",
+      "bg": "bone"
+    },
+    "tip": {
+      "slots": [
+        "label",
+        "tip",
+        "detail"
+      ],
+      "align": "left",
+      "bg": "inkSoft"
+    },
+    "holiday": {
+      "slots": [
+        "greeting",
+        "line"
+      ],
+      "align": "center",
+      "bg": "ink",
+      "seasonal": true
+    },
+    "detail": {
+      "slots": [
+        "label",
+        "caption",
+        "crop"
+      ],
+      "align": "left",
+      "bg": "ink"
+    },
+    "backdrop": {
+      "slots": [
+        "line1",
+        "line2",
+        "line3",
+        "crop"
+      ],
+      "align": "center",
+      "bg": "screenshotDim"
+    },
+    "mobile": {
+      "slots": [
+        "headline",
+        "accentWord",
+        "support",
+        "crop"
+      ],
+      "align": "left",
+      "bg": "ink"
+    },
+    "contrast": {
+      "slots": [
+        "leftLabel",
+        "leftText",
+        "rightLabel",
+        "rightText"
+      ],
+      "align": "left",
+      "bg": "ink"
+    }
   },
   "voice": {
     "sentences": "short, declarative, end with a period",
-    "headlineWords": [3, 5],
-    "banned": ["unlock", "elevate", "seamless", "cutting-edge", "game-changing", "!", "🚀"],
-    "ctas": ["Start your project", "See the work", "Tell us what’s tangled"],
-    "proofPoints": ["50+ projects delivered", "15 years of experience", "40% average inquiry increase", "24-hour reply"]
+    "headlineWords": [
+      3,
+      5
+    ],
+    "banned": [
+      "unlock",
+      "elevate",
+      "seamless",
+      "cutting-edge",
+      "game-changing",
+      "!",
+      "🚀"
+    ],
+    "ctas": [
+      "Start your project",
+      "See the work",
+      "Tell us what’s tangled"
+    ],
+    "proofPoints": [
+      "50+ projects delivered",
+      "15 years of experience",
+      "40% average inquiry increase",
+      "24-hour reply"
+    ]
   },
   "platforms": {
-    "instagram": { "size": "portrait", "hashtags": [5, 8], "link": "bio" },
-    "facebook": { "size": "square", "hashtags": [0, 3], "link": "inline" },
-    "linkedin": { "size": "square", "hashtags": [3, 5], "link": "inline" },
-    "googlebusiness": { "size": "square", "hashtags": [0, 0], "link": "button" }
+    "instagram": {
+      "size": "portrait",
+      "hashtags": [
+        5,
+        8
+      ],
+      "link": "bio",
+      "hashtagsIn": "firstComment"
+    },
+    "facebook": {
+      "size": "square",
+      "hashtags": [
+        0,
+        3
+      ],
+      "link": "inline",
+      "hashtagsIn": "caption"
+    },
+    "linkedin": {
+      "size": "square",
+      "hashtags": [
+        3,
+        5
+      ],
+      "link": "inline",
+      "linkIn": "firstComment"
+    },
+    "googlebusiness": {
+      "size": "square",
+      "hashtags": [
+        0,
+        0
+      ],
+      "link": "button",
+      "templates": [
+        "stat",
+        "list",
+        "headline",
+        "tip",
+        "question",
+        "holiday",
+        "contrast"
+      ],
+      "maxPerWeek": 2
+    },
+    "_placement": "hashtagsIn: caption|firstComment (where hashtags go). linkIn: caption|firstComment (LinkedIn: move URLs out of the caption into the first comment). Edit here; publish.ts reads these."
   },
   "hashtags": {
-    "always": ["#Daedabyte", "#WebDesign", "#SmallBusiness"],
-    "region": ["#ShenandoahValley", "#VirginiaBusiness", "#MtJackson", "#HarrisonburgVA", "#WinchesterVA"],
-    "service": ["#WebDevelopment", "#CustomWebsite", "#WebsiteHosting", "#SEO", "#AIWorkflows", "#Ecommerce"]
+    "always": [
+      "#Daedabyte",
+      "#WebDesign",
+      "#SmallBusiness"
+    ],
+    "region": [
+      "#ShenandoahValley",
+      "#VirginiaBusiness",
+      "#MtJackson",
+      "#HarrisonburgVA",
+      "#WinchesterVA"
+    ],
+    "service": [
+      "#WebDevelopment",
+      "#CustomWebsite",
+      "#WebsiteHosting",
+      "#SEO",
+      "#AIWorkflows",
+      "#Ecommerce"
+    ]
+  },
+  "seasonal": {
+    "_note": "Color overrides applied at render time on and around US holidays. Only accents change; ink, bone and marble stay so the ads still read as Daedabyte. Keys are theme names used in src/holidays.ts.",
+    "themes": {
+      "halloween": {
+        "accentOrder": [
+          "terracotta",
+          "purple",
+          "gold",
+          "aegean"
+        ],
+        "colors": {
+          "terracotta": "#FF7A1A",
+          "purple": "#8E44D6",
+          "gold": "#E0B23A",
+          "aegean": "#2C9A7A"
+        }
+      },
+      "christmas": {
+        "accentOrder": [
+          "terracotta",
+          "aegean",
+          "gold",
+          "purple"
+        ],
+        "colors": {
+          "terracotta": "#D6382F",
+          "aegean": "#2E7D4F",
+          "gold": "#D4B45A",
+          "purple": "#B38BD9"
+        }
+      },
+      "newyear": {
+        "accentOrder": [
+          "gold",
+          "purple",
+          "aegean",
+          "terracotta"
+        ],
+        "colors": {
+          "gold": "#E2C96A",
+          "purple": "#A678D1",
+          "aegean": "#1D8A99",
+          "terracotta": "#FC7645"
+        }
+      },
+      "valentine": {
+        "accentOrder": [
+          "terracotta",
+          "purple",
+          "gold",
+          "aegean"
+        ],
+        "colors": {
+          "terracotta": "#E0457B",
+          "purple": "#B46BD1",
+          "gold": "#E2A5B5"
+        }
+      },
+      "stpatricks": {
+        "accentOrder": [
+          "aegean",
+          "gold",
+          "terracotta",
+          "purple"
+        ],
+        "colors": {
+          "aegean": "#2E8B57",
+          "gold": "#D4B45A",
+          "terracotta": "#F08A3E"
+        }
+      },
+      "spring": {
+        "accentOrder": [
+          "purple",
+          "aegean",
+          "gold",
+          "terracotta"
+        ],
+        "colors": {
+          "purple": "#B59BE0",
+          "aegean": "#4FB3A9",
+          "gold": "#E6D27A",
+          "terracotta": "#F4A07C"
+        }
+      },
+      "patriotic": {
+        "accentOrder": [
+          "terracotta",
+          "aegean",
+          "gold",
+          "purple"
+        ],
+        "colors": {
+          "terracotta": "#C8352E",
+          "aegean": "#2B4C9B",
+          "gold": "#E6E1D3",
+          "purple": "#8FA3D9"
+        }
+      },
+      "autumn": {
+        "accentOrder": [
+          "terracotta",
+          "gold",
+          "purple",
+          "aegean"
+        ],
+        "colors": {
+          "terracotta": "#D9682B",
+          "gold": "#C9A24A",
+          "purple": "#8C4A2F",
+          "aegean": "#5B7F3E"
+        }
+      }
+    }
   }
 }

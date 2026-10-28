@@ -1,0 +1,1 @@
+{ "id": "fixture-contrast", "template": "contrast", "slots": { "leftLabel": "Most websites", "leftText": "Rebuilt every two years.", "rightLabel": "Ours", "rightText": "Still working in five." } }

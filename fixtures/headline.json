@@ -1,0 +1,1 @@
+{ "id": "fixture-headline", "template": "headline", "slots": { "headline": "Built to last.", "accentWord": "last", "support": "Fast, clear, and still working five years from now." } }

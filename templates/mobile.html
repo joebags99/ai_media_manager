@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-template="mobile">
+<head>
+<meta charset="utf-8">
+<title>mobile</title>
+<!-- Mobile ad: a phone mockup of the mobile capture beside a headline with an accent word and a supporting line. Slots: headline accentWord support crop (a -mobile.png screenshot). Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json. -->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body { font-family: var(--font-body); font-weight: var(--font-body-weight); -webkit-font-smoothing: antialiased; }
+  .ad { position: relative; width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; height: var(--icon); }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+  .display { font-family: var(--font-display); font-weight: var(--font-display-weight); letter-spacing: var(--font-display-tracking); }
+  .eyebrow { font-family: var(--font-eyebrow); font-weight: var(--font-eyebrow-weight); letter-spacing: var(--font-eyebrow-tracking); text-transform: var(--font-eyebrow-transform); font-size: 20px; color: var(--color-ash); }
+  .foot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 32px; }
+  .accent { color: var(--color-terracotta); }
+  body { background: var(--color-ink); color: var(--color-marble); }
+  .body { flex: 1; min-height: 0; display: flex; gap: 48px; align-items: center; }
+  .text { flex: 1 1 0; min-width: 0; }
+  .headline { font-size: 112px; line-height: 0.98; color: var(--color-marble); }
+  :root[data-format="portrait"] .headline { font-size: 120px; }
+  .rule { width: 112px; height: var(--rule); background: var(--color-ash); margin: 40px 0 30px; }
+  .support { font-size: 36px; line-height: 1.3; color: var(--color-lavender); max-width: 20ch; }
+  .phone { flex: none; width: 352px; height: 720px; border-radius: 48px; background: var(--color-inkSoft); border: 3px solid var(--color-ash); padding: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  :root[data-format="portrait"] .phone { width: 380px; height: 780px; }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 36px; overflow: hidden; background: var(--color-marble); }
+  .notch { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 110px; height: 28px; border-radius: 14px; background: var(--color-inkSoft); z-index: 2; }
+</style>
+</head>
+<body>
+  <main class="ad">
+    <header class="top"><span data-icon></span></header>
+    <section class="body">
+      <div class="text" data-fit-box>
+        <h1 class="display headline" data-slot="headline" data-accent-slot="accentWord" data-fit></h1>
+        <div class="rule"></div>
+        <p class="support" data-slot="support" data-fit></p>
+      </div>
+      <div class="phone"><div class="screen" data-crop="cover"><div class="notch"></div><img alt=""></div></div>
+    </section>
+    <footer class="foot"><span class="eyebrow" data-brand="name"></span><span class="eyebrow" data-brand="siteHost"></span></footer>
+  </main>
+</body>
+</html>

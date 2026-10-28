@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-template="detail">
+<head>
+<meta charset="utf-8">
+<title>detail</title>
+<!-- Detail ad: a tight crop of one part of a site we built, shown large in a frame, with a label above and a short caption below. Slots: label caption crop. Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json. -->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body { font-family: var(--font-body); font-weight: var(--font-body-weight); -webkit-font-smoothing: antialiased; }
+  .ad { position: relative; width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; height: var(--icon); }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+  .display { font-family: var(--font-display); font-weight: var(--font-display-weight); letter-spacing: var(--font-display-tracking); }
+  .eyebrow { font-family: var(--font-eyebrow); font-weight: var(--font-eyebrow-weight); letter-spacing: var(--font-eyebrow-tracking); text-transform: var(--font-eyebrow-transform); font-size: 20px; color: var(--color-ash); }
+  .foot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 32px; }
+  .accent { color: var(--color-terracotta); }
+  body { background: var(--color-ink); color: var(--color-marble); }
+  .label { margin-top: 36px; color: var(--color-gold); font-size: 22px; }
+  .shot-area { flex: 1; min-height: 0; margin: 22px 0 32px; display: flex; align-items: center; justify-content: flex-start; }
+  .shot-frame { border: 2px solid var(--color-ash); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.45); background: var(--color-inkSoft); }
+  .shot-view { position: relative; overflow: hidden; }
+  .caption { font-size: 64px; line-height: 1.08; color: var(--color-marble); max-width: 16ch; }
+  :root[data-format="portrait"] .caption { font-size: 72px; }
+</style>
+</head>
+<body>
+  <main class="ad">
+    <header class="top"><span data-icon></span></header>
+    <p class="eyebrow label" data-slot="label"></p>
+    <section class="shot-area" data-crop-area>
+      <div class="shot-frame" data-crop-frame><div class="shot-view" data-crop="contain"><img alt=""></div></div>
+    </section>
+    <section data-fit-box style="flex:none;max-height:26%;overflow:hidden"><h1 class="display caption" data-slot="caption" data-fit></h1></section>
+    <footer class="foot"><span class="eyebrow" data-brand="name"></span><span class="eyebrow" data-brand="siteHost"></span></footer>
+  </main>
+</body>
+</html>

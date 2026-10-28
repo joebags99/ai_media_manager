@@ -1,0 +1,1 @@
+{ "id": "fixture-question", "template": "question", "slots": { "question": "Does your website load before your customer gives up?", "answer": "Ours do." } }

@@ -1,0 +1,7 @@
+{
+  "name": "Hidden-section fixture",
+  "url": "file://__ROOT__/fixtures/screenshots/hidden-test.html",
+  "industry": "test",
+  "permissionToName": false,
+  "recipe": { "sections": [ { "name": "hero", "selector": "section" }, { "name": "missing", "selector": ".nope" } ] }
+}

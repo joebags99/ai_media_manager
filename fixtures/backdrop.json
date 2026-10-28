@@ -1,0 +1,1 @@
+{ "id": "fixture-backdrop", "template": "backdrop", "slots": { "line1": "Three weeks.", "line2": "One cohesive site.", "line3": "Built for growth." }, "crop": { "screenshot": "sample-desktop.png", "region": [0, 0, 1440, 994], "treatment": "dimmed" } }

@@ -1,0 +1,32 @@
+{
+  "name": "Hero's Journey",
+  "url": "https://herosjourneycardshop.com/",
+  "industry": "Card Shop",
+  "kind": "client",
+  "permissionToName": true,
+  "recipe": {
+    "dismiss": [],
+    "waitFor": [
+      "#home"
+    ],
+    "settleMs": 800,
+    "sections": [
+      {
+        "name": "hero",
+        "selector": "#home"
+      },
+      {
+        "name": "services",
+        "selector": "#games"
+      },
+      {
+        "name": "process",
+        "selector": "#events"
+      },
+      {
+        "name": "about",
+        "selector": "#about"
+      }
+    ]
+  }
+}

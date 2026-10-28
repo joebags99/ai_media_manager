@@ -1,0 +1,14 @@
+{
+  "name": "Valley Tile & Stone (fixture)",
+  "url": "file://__ROOT__/fixtures/screenshots/sample-site.html",
+  "industry": "tile installation",
+  "permissionToName": false,
+  "recipe": {
+    "dismiss": [],
+    "waitFor": [".hero"],
+    "sections": [
+      { "name": "hero", "selector": ".hero" },
+      { "name": "services", "selector": ".row" }
+    ]
+  }
+}

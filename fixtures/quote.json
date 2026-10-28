@@ -1,0 +1,9 @@
+{
+  "id": "fixture-quote",
+  "template": "quote",
+  "slots": {
+    "quote": "They rebuilt our site in three weeks. The phone has not stopped ringing.",
+    "name": "Dana Whitfield",
+    "business": "Valley Tile & Stone"
+  }
+}

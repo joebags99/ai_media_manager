@@ -1,0 +1,1 @@
+{ "id": "fixture-holiday", "template": "holiday", "theme": "autumn", "slots": { "greeting": "Happy Thanksgiving.", "line": "Thankful for every small business that trusted us with their site this year." } }

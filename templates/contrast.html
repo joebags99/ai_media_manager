@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en" data-template="contrast">
+<head>
+<meta charset="utf-8">
+<title>contrast</title>
+<!-- Contrast ad: two stacked blocks, a labelled 'them' line in ash and a labelled 'us' line in the accent. Slots: leftLabel leftText rightLabel rightText. Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json. -->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body { font-family: var(--font-body); font-weight: var(--font-body-weight); -webkit-font-smoothing: antialiased; }
+  .ad { position: relative; width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; height: var(--icon); }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+  .display { font-family: var(--font-display); font-weight: var(--font-display-weight); letter-spacing: var(--font-display-tracking); }
+  .eyebrow { font-family: var(--font-eyebrow); font-weight: var(--font-eyebrow-weight); letter-spacing: var(--font-eyebrow-tracking); text-transform: var(--font-eyebrow-transform); font-size: 20px; color: var(--color-ash); }
+  .foot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 32px; }
+  .accent { color: var(--color-terracotta); }
+  body { background: var(--color-ink); color: var(--color-marble); }
+  .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .stack { margin: auto 0; }
+  .block + .block { margin-top: 56px; padding-top: 56px; border-top: var(--rule) solid var(--color-inkSoft); }
+  .block .eyebrow { margin-bottom: 16px; }
+  .them .eyebrow { color: var(--color-ash); } .us .eyebrow { color: var(--color-terracotta); }
+  .text { font-size: 84px; line-height: 1.04; max-width: 13ch; }
+  :root[data-format="portrait"] .text { font-size: 96px; }
+  .them .text { color: var(--color-ash); } .us .text { color: var(--color-marble); }
+</style>
+</head>
+<body>
+  <main class="ad">
+    <header class="top"><span data-icon></span></header>
+    <section class="body" data-fit-box>
+      <div class="stack">
+        <div class="block them"><p class="eyebrow" data-slot="leftLabel"></p><p class="display text" data-slot="leftText" data-fit></p></div>
+        <div class="block us"><p class="eyebrow" data-slot="rightLabel"></p><p class="display text" data-slot="rightText" data-fit></p></div>
+      </div>
+    </section>
+    <footer class="foot"><span class="eyebrow" data-brand="name"></span><span class="eyebrow" data-brand="siteHost"></span></footer>
+  </main>
+</body>
+</html>

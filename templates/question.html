@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-template="question">
+<head>
+<meta charset="utf-8">
+<title>question</title>
+<!-- Question ad: a big italic question on bone, an orange rule, and a short bold answer. Slots: question answer. Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json. -->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body { font-family: var(--font-body); font-weight: var(--font-body-weight); -webkit-font-smoothing: antialiased; }
+  .ad { width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; height: var(--icon); }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+  .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .stack { margin-top: auto; margin-bottom: auto; padding-top: 24px; }
+  .display { font-family: var(--font-display); font-weight: var(--font-display-weight); letter-spacing: var(--font-display-tracking); }
+  .eyebrow { font-family: var(--font-eyebrow); font-weight: var(--font-eyebrow-weight); letter-spacing: var(--font-eyebrow-tracking); text-transform: var(--font-eyebrow-transform); font-size: 20px; color: var(--color-ash); }
+  .foot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 32px; }
+  .accent { color: var(--color-terracotta); }
+  body { background: var(--color-bone); color: var(--color-ink); }
+  .ad { align-items: flex-start; }
+  .question { font-family: var(--font-body); font-style: italic; font-size: 84px; line-height: 1.12; letter-spacing: -0.015em; color: var(--color-ink); max-width: 15ch; }
+  :root[data-format="portrait"] .question { font-size: 92px; }
+  .rule { width: 120px; height: var(--rule); background: var(--color-terracotta); margin: 52px 0 40px; }
+  .answer { font-size: 72px; line-height: 1.05; color: var(--color-terracotta); max-width: 14ch; }
+  :root[data-format="portrait"] .answer { font-size: 80px; }
+  .foot { width: 100%; }
+</style>
+</head>
+<body>
+  <main class="ad">
+    <header class="top"><span data-icon></span></header>
+    <section class="body" data-fit-box>
+      <div class="stack">
+        <p class="question" data-slot="question" data-fit></p>
+        <div class="rule"></div>
+        <p class="display answer" data-slot="answer" data-fit></p>
+      </div>
+    </section>
+    <footer class="foot"><span class="eyebrow" data-brand="name"></span><span class="eyebrow" data-brand="siteHost"></span></footer>
+  </main>
+</body>
+</html>

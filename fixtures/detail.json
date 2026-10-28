@@ -1,0 +1,1 @@
+{ "id": "fixture-detail", "template": "detail", "slots": { "label": "Detail · a tile installer's site", "caption": "One tap to book." }, "crop": { "screenshot": "sample-desktop.png", "region": [60, 520, 540, 220], "treatment": "framed" } }

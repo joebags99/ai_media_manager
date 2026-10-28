@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-template="quote">
+<head>
+<meta charset="utf-8">
+<title>quote</title>
+<!--
+  Quote ad: big purple quote mark, italic quote, orange rule, attribution.
+  Slots: quote name business
+  Background: bone (default). photoWash is reserved until we have client photos.
+  Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json.
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body {
+    background: var(--color-bone);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-weight: var(--font-body-weight);
+    -webkit-font-smoothing: antialiased;
+  }
+  .ad { width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; align-items: center; text-align: center; }
+
+  .body { flex: 1; min-height: 0; width: 100%; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+  .stack { margin-top: auto; margin-bottom: auto; display: flex; flex-direction: column; align-items: center; }
+
+  .mark {
+    color: var(--color-purple);
+    font-family: var(--font-display);
+    font-weight: var(--font-display-weight);
+    font-size: 300px;
+    line-height: 1;
+    height: 0.5em;
+    margin-bottom: 40px;
+  }
+  :root[data-format="portrait"] .mark { font-size: 340px; margin-bottom: 56px; }
+
+  .quote {
+    font-family: var(--font-body);
+    font-style: italic;
+    font-weight: var(--font-body-weight);
+    color: var(--color-ink);
+    font-size: 60px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    max-width: 19ch;
+    text-wrap: balance;
+  }
+  :root[data-format="portrait"] .quote { font-size: 66px; }
+
+  .rule { width: 120px; height: var(--rule); background: var(--color-terracotta); margin: 56px 0 40px; }
+
+  .name {
+    font-family: var(--font-display);
+    font-weight: var(--font-display-weight);
+    letter-spacing: var(--font-display-tracking);
+    color: var(--color-ink);
+    font-size: 40px;
+    line-height: 1.1;
+  }
+  .business {
+    margin-top: 14px;
+    font-family: var(--font-eyebrow);
+    font-weight: var(--font-eyebrow-weight);
+    letter-spacing: var(--font-eyebrow-tracking);
+    text-transform: var(--font-eyebrow-transform);
+    color: var(--color-ash);
+    font-size: 24px;
+    line-height: 1.3;
+  }
+
+  .foot { display: flex; align-items: center; gap: 16px; padding-top: 32px; }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+  .eyebrow {
+    font-family: var(--font-eyebrow);
+    font-weight: var(--font-eyebrow-weight);
+    letter-spacing: var(--font-eyebrow-tracking);
+    text-transform: var(--font-eyebrow-transform);
+    font-size: 20px;
+    color: var(--color-ash);
+  }
+</style>
+</head>
+<body>
+  <main class="ad">
+    <section class="body" data-fit-box>
+      <div class="stack">
+        <div class="mark" aria-hidden="true">&ldquo;</div>
+        <blockquote class="quote" data-slot="quote" data-fit></blockquote>
+        <div class="rule"></div>
+        <p class="name" data-slot="name" data-fit></p>
+        <p class="business" data-slot="business" data-fit></p>
+      </div>
+    </section>
+    <footer class="foot">
+      <span data-icon></span>
+      <span class="eyebrow" data-brand="siteHost"></span>
+    </footer>
+  </main>
+</body>
+</html>

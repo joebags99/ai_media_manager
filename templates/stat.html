@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-template="stat">
+<head>
+<meta charset="utf-8">
+<title>stat</title>
+<!--
+  Stat ad: gold number, white claim, orange kicker.
+  Slots: number claim kicker
+  Background: ink (default) or screenshotDim (crop.treatment = "dimmed" fills .shot-bg behind an ink wash).
+  Colors, fonts, --pad, --rule and --icon are CSS variables injected by src/render.ts from brand/brand.json.
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body {
+    background: var(--color-ink);
+    color: var(--color-marble);
+    font-family: var(--font-body);
+    font-weight: var(--font-body-weight);
+    -webkit-font-smoothing: antialiased;
+  }
+  .shot-bg { position: fixed; inset: 0; overflow: hidden; display: none; }
+  .shot-bg img { filter: grayscale(1) blur(3px); }
+  .shot-bg::after { content: ""; position: absolute; inset: 0; background: var(--color-ink); opacity: 0.86; }
+  :root[data-bg="screenshotDim"] .shot-bg { display: block; }
+
+  .ad { position: relative; width: 100vw; height: 100vh; padding: var(--pad); display: flex; flex-direction: column; }
+
+  .top { display: flex; align-items: center; height: var(--icon); }
+  [data-icon] { width: var(--icon); height: var(--icon); color: var(--color-terracotta); flex: none; }
+  [data-icon] svg { width: 100%; height: 100%; display: block; }
+
+  .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .stack { margin-top: auto; margin-bottom: auto; padding-top: 24px; }
+
+  .number {
+    display: block;
+    white-space: nowrap;
+    color: var(--color-gold);
+    font-family: var(--font-display);
+    font-weight: var(--font-display-weight);
+    letter-spacing: var(--font-display-tracking);
+    font-size: 340px;
+    line-height: 0.86;
+    margin-left: -0.04em;
+  }
+  :root[data-format="portrait"] .number { font-size: 380px; }
+
+  .claim {
+    margin-top: 48px;
+    color: var(--color-marble);
+    font-family: var(--font-display);
+    font-weight: var(--font-display-weight);
+    letter-spacing: var(--font-display-tracking);
+    font-size: 68px;
+    line-height: 1.06;
+    max-width: 15ch;
+  }
+  :root[data-format="portrait"] .claim { font-size: 76px; }
+
+  .kicker {
+    margin-top: 40px;
+    color: var(--color-terracotta);
+    font-family: var(--font-eyebrow);
+    font-weight: var(--font-eyebrow-weight);
+    letter-spacing: var(--font-eyebrow-tracking);
+    text-transform: var(--font-eyebrow-transform);
+    font-size: 30px;
+    line-height: 1.3;
+  }
+
+  .foot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 32px; }
+  .eyebrow {
+    font-family: var(--font-eyebrow);
+    font-weight: var(--font-eyebrow-weight);
+    letter-spacing: var(--font-eyebrow-tracking);
+    text-transform: var(--font-eyebrow-transform);
+    font-size: 20px;
+    color: var(--color-ash);
+  }
+  :root[data-bg="screenshotDim"] .foot .eyebrow { color: var(--color-lavender); }
+</style>
+</head>
+<body>
+  <div class="shot-bg" data-crop="cover"><img alt=""></div>
+  <main class="ad">
+    <header class="top"><span data-icon></span></header>
+    <section class="body" data-fit-box>
+      <div class="stack">
+        <span class="number" data-slot="number" data-fit data-fit-width="number"></span>
+        <p class="claim" data-slot="claim" data-fit></p>
+        <p class="kicker" data-slot="kicker" data-fit></p>
+      </div>
+    </section>
+    <footer class="foot">
+      <span class="eyebrow" data-brand="name"></span>
+      <span class="eyebrow" data-brand="siteHost"></span>
+    </footer>
+  </main>
+</body>
+</html>

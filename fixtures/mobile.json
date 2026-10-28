@@ -1,0 +1,1 @@
+{ "id": "fixture-mobile", "template": "mobile", "slots": { "headline": "Made for phones.", "accentWord": "phones", "support": "Most of your customers will never see the desktop version." }, "crop": { "screenshot": "sample-mobile.png", "region": null, "treatment": "framed" } }

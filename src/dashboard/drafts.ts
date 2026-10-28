@@ -9,7 +9,7 @@ import { hasApiKey } from '../claude.js';
 import { readManifest, siteDir } from '../capture.js';
 import { loadBrand, type Brand } from '../render.js';
 import { validateContent, type DraftContent } from '../validate.js';
-import { approve, reject, archive, duplicate, remove, clearWeek } from '../workflow.js';
+import { approve, reject, archive, duplicate, remove, clearWeek, clearError } from '../workflow.js';
 import { regenerateCaptions } from '../generate.js';
 import { slotPicker } from './library.js';
 import { reviseDraft } from '../revise.js';
@@ -83,8 +83,9 @@ function actions(d: Draft, versions: Draft[], brand: Brand): string {
       `<form method="post" action="/drafts/${d.id}/publish" onsubmit="return confirm('${TEST_MODE ? 'TEST MODE: create posts on the checked channels, scheduled 60 days out?' : 'LIVE: schedule this post on the checked channels?'}')" class="card">
         <div class="row">${choices.map((c) => `<label title="${esc(c.reason ?? '')}"><input type="checkbox" name="platforms" value="${c.platform}" ${c.on ? 'checked' : ''}> ${c.platform}${c.reason ? ` <span class="hint">(off: ${esc(c.reason)})</span>` : ''}</label>`).join('')}</div>
         <div class="row" style="margin-top:12px"><button class="primary">${TEST_MODE ? 'Test-publish to Buffer' : 'Schedule on Buffer'}</button><span class="hint">Needs PUBLIC_BASE_URL so Buffer can fetch the renders. <a href="/buffer">Check Buffer</a>.</span></div>
-        ${d.errorMessage ? notice('bad', `Last attempt: ${esc(d.errorMessage)}`) : ''}
-      </form>`,
+        ${d.errorMessage ? notice('bad', `<b>Last attempt failed:</b> ${esc(d.errorMessage)}<br><span class="hint">Fix the cause (see the <a href="/buffer">Buffer page</a>), then publish again. <button form="dismissErr" class="secondary small" style="margin-left:8px">Dismiss</button></span>`) : ''}
+      </form>
+      ${d.errorMessage ? `<form method="post" action="/drafts/${d.id}/clear-error" id="dismissErr"></form>` : ''}`,
     );
   }
   if (d.status === 'scheduled' || (d.status === 'error' && d.bufferPostIds)) {
@@ -96,6 +97,10 @@ function actions(d: Draft, versions: Draft[], brand: Brand): string {
       <table style="max-width:560px"><tr><th>Channel</th><th>Buffer post id</th></tr>${Object.entries(ids).map(([p, id]) => `<tr><td>${esc(p)}</td><td class="muted">${esc(id)}</td></tr>`).join('')}</table>
       <form method="post" action="/drafts/${d.id}/unpublish" onsubmit="return confirm('Delete these ${Object.keys(ids).length} posts from Buffer?')" class="row" style="margin-top:12px"><button class="danger">Delete ${TEST_MODE ? 'test ' : ''}posts from Buffer</button><span class="hint">Same as <code>npm run buffer:delete -- ${esc(Object.values(ids).join(' '))}</code></span></form>`,
     );
+  }
+  if (d.status === 'error') {
+    return section('Error', '', `${notice('bad', `<b>${esc(d.errorMessage ?? 'Publish failed')}</b>`)}
+      <form method="post" action="/drafts/${d.id}/clear-error" class="row"><button class="secondary">Clear error and return to approved</button><span class="hint">Fix the cause first (usually PUBLIC_BASE_URL or the tunnel; check the <a href="/buffer">Buffer page</a>), then clear and publish again.</span></form>`);
   }
   if (d.status === 'revising') return notice('info', 'A revision is in progress for this version.');
   if (d.status === 'rejected') return notice('info', STATUS_HELP['rejected']!);
@@ -303,6 +308,7 @@ export function registerDraftRoutes(app: Express, page: Page, wrap: Wrap): void 
     }
     res.redirect(`/drafts/${d.id}`);
   });
+  app.post('/drafts/:id/clear-error', act((id) => clearError(id)));
   app.post('/drafts/:id/delete', (req, res) => {
     const id = String(req.params['id']);
     const d = getDraft(id);

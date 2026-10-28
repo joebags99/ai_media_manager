@@ -170,3 +170,51 @@ describe('platform rules', () => {
     expect(choice.reason).toMatch(/already has 2/);
   });
 });
+
+describe('error recovery', () => {
+  it('a publish that creates nothing keeps the draft approved with the message, so it can be retried', async () => {
+    const { cfg } = fakeBuffer();
+    const down: BufferConfig = { ...cfg, fetch: (async () => new Response('bad gateway', { status: 502 })) as typeof fetch };
+    const d = newDraft('approved');
+    await expect(publishDraft(d.id, { cfg: down, log: () => {}, testMode: true })).rejects.toThrow(/502/);
+    const after = getDraft(d.id)!;
+    expect(after.status).toBe('approved');
+    expect(after.errorMessage).toMatch(/502/);
+    expect(after.bufferPostIds).toBeNull();
+    // and a later success clears the message
+    const { cfg: ok } = fakeBuffer();
+    await publishDraft(d.id, { cfg: ok, log: () => {}, testMode: true });
+    expect(getDraft(d.id)!.status).toBe('scheduled');
+    expect(getDraft(d.id)!.errorMessage).toBeNull();
+  });
+  it('a partial failure is an error until its Buffer posts are deleted, then approved again', async () => {
+    const { clearError } = await import('../src/workflow.js');
+    const { cfg } = fakeBuffer();
+    const flaky: BufferConfig = {
+      ...cfg,
+      fetch: (async (url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as { query: string; variables: { input: { channelId?: string } } };
+        if (/createPost/.test(body.query) && body.variables.input.channelId === '699770e9d6f8d304f930040b') return new Response(JSON.stringify({ data: { createPost: { __typename: 'InvalidInputError', message: 'nope' } } }), { status: 200 });
+        return cfg.fetch!(url, init);
+      }) as typeof fetch,
+    };
+    const d = newDraft('approved');
+    await expect(publishDraft(d.id, { cfg: flaky, log: () => {}, testMode: true })).rejects.toThrow();
+    expect(getDraft(d.id)!.status).toBe('error');
+    expect(() => clearError(d.id)).toThrow(/Delete the Buffer posts/);
+    const ids = Object.values(JSON.parse(getDraft(d.id)!.bufferPostIds!) as Record<string, string>);
+    await deleteBufferPosts(ids, { cfg, log: () => {}, draftId: d.id });
+    expect(getDraft(d.id)!.status).toBe('approved');
+    expect(getDraft(d.id)!.errorMessage).toBeNull();
+  });
+  it('checkPublicBase reports a stale tunnel plainly', async () => {
+    const { checkPublicBase } = await import('../src/publish.js');
+    const bad = await checkPublicBase('/x/a-square.png', (async () => new Response('', { status: 404 })) as typeof fetch);
+    expect(bad.ok).toBe(false);
+    expect(bad.detail).toMatch(/HTTP 404/);
+    const good = await checkPublicBase('/x/a-square.png', (async () => new Response('png', { status: 200, headers: { 'content-type': 'image/png' } })) as typeof fetch);
+    expect(good.ok).toBe(true);
+    const html = await checkPublicBase('/x/a-square.png', (async () => new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch);
+    expect(html.ok).toBe(false);
+  });
+});

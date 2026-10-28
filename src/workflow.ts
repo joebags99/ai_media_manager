@@ -9,7 +9,7 @@ const ALLOWED: Record<string, DraftStatus[]> = {
   scheduled: ['posted', 'error'],
   rejected: [],
   posted: [],
-  error: [],
+  error: ['approved', 'pending', 'archived'],
 };
 
 export function canTransition(from: DraftStatus, to: DraftStatus): boolean {
@@ -79,4 +79,13 @@ export function clearWeek(weekOf: string): Draft[] {
     if (d.status === 'pending' || d.status === 'approved') out.push(archive(d.id));
   }
   return out;
+}
+
+/** Clear an error state. Drafts that still have posts in Buffer must delete them first. */
+export function clearError(id: string): Draft {
+  const d = getDraft(id);
+  if (!d) throw new Error(`Unknown draft ${id}`);
+  if (d.status !== 'error') return updateDraft(id, { errorMessage: null });
+  if (d.bufferPostIds && Object.keys(JSON.parse(d.bufferPostIds) as Record<string, string>).length) throw new Error('Delete the Buffer posts on this draft first; then the error clears on its own');
+  return transition(id, 'approved', { errorMessage: null, bufferPostIds: null, scheduledAt: null });
 }

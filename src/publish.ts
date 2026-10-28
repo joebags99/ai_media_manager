@@ -247,9 +247,15 @@ export async function publishDraft(draftId: string, opts: PublishOptions = {}): 
   const ids = Object.values(postIds);
   const deleteCommand = ids.length ? deleteCommandFor(ids) : '';
   if (errors.length) {
-    updateDraft(draft.id, { bufferPostIds: JSON.stringify(postIds), errorMessage: errors.join('; ') });
-    transition(draft.id, 'error');
-    if (ids.length) log(`partial failure; posts already created can be removed with: ${deleteCommand}`);
+    if (ids.length) {
+      // Some posts exist in Buffer: mark error and keep their ids so they can be removed.
+      updateDraft(draft.id, { bufferPostIds: JSON.stringify(postIds), errorMessage: errors.join('; ') });
+      transition(draft.id, 'error');
+      log(`partial failure; posts already created can be removed with: ${deleteCommand}`);
+    } else {
+      // Nothing reached Buffer: stay approved, show the message, let the reviewer fix and retry.
+      updateDraft(draft.id, { errorMessage: errors.join('; ') });
+    }
     throw new Error(`Publish failed for ${errors.length} channel(s): ${errors.join('; ')}`);
   }
   const updated = transition(draft.id, 'scheduled', { bufferPostIds: JSON.stringify(postIds), scheduledAt: when.toISOString(), errorMessage: null });
@@ -271,12 +277,32 @@ export async function deleteBufferPosts(ids: string[], opts: { cfg?: BufferConfi
       const map = JSON.parse(d.bufferPostIds) as Record<string, string>;
       const remaining = Object.fromEntries(Object.entries(map).filter(([, v]) => !ids.includes(v)));
       const patch: Partial<Draft> = { bufferPostIds: Object.keys(remaining).length ? JSON.stringify(remaining) : null };
-      if (!Object.keys(remaining).length && d.status === 'scheduled') {
-        // Back to approved so it can be published again (test cycle); spec allows error from any state only, so set directly.
-        updateDraft(d.id, { ...patch, status: 'approved', scheduledAt: null });
+      if (!Object.keys(remaining).length && (d.status === 'scheduled' || d.status === 'error')) {
+        // Nothing left in Buffer: back to approved so it can be published again.
+        updateDraft(d.id, { ...patch, status: 'approved', scheduledAt: null, errorMessage: null });
       } else {
         updateDraft(d.id, patch);
       }
     }
+  }
+}
+
+/** Can the public base URL actually serve a render? Checks one file through the tunnel. */
+export async function checkPublicBase(file: string | null, f: typeof fetch = fetch): Promise<{ ok: boolean; url: string; detail: string }> {
+  let base: string;
+  try {
+    base = publicBaseUrl();
+  } catch (err) {
+    return { ok: false, url: '', detail: (err as Error).message };
+  }
+  const url = `${base}/renders/${file ? path.basename(file) : ''}`;
+  try {
+    const res = await f(url, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(8000) });
+    const type = res.headers.get('content-type') ?? '';
+    if (!res.ok) return { ok: false, url, detail: `HTTP ${res.status}. The tunnel URL may have changed; copy the new one from the cloudflared window into .env and restart.` };
+    if (file && !type.startsWith('image/')) return { ok: false, url, detail: `Reachable, but returned ${type || 'no content type'} instead of an image.` };
+    return { ok: true, url, detail: file ? 'Reachable from outside and serving the image.' : 'Reachable from outside.' };
+  } catch (err) {
+    return { ok: false, url, detail: `${(err as Error).message}. The tunnel is probably not running, or the URL is stale.` };
   }
 }

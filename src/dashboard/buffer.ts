@@ -4,7 +4,7 @@ import { bufferConfig, getAccount, listChannels } from '../buffer.js';
 import { TEST_MODE } from '../config.js';
 import { getDraft, listDrafts, mondayOf, nextWeekOf } from '../db.js';
 import { startJob } from '../jobs.js';
-import { deleteBufferPosts, publishDraft, specBuffer, PLATFORMS, type Platform } from '../publish.js';
+import { deleteBufferPosts, publishDraft, specBuffer, checkPublicBase, PLATFORMS, type Platform } from '../publish.js';
 import { esc, notice, pageHead, section } from './html.js';
 
 type Page = (title: string, body: string, active: string) => string;
@@ -49,7 +49,13 @@ export function registerBufferRoutes(app: Express, page: Page, wrap: Wrap): void
           'Image hosting',
           'Buffer has no upload endpoint; it downloads each post image from a public URL. The dashboard serves renders at PUBLIC_BASE_URL/renders/…, so that URL must reach this machine from the internet.',
           base
-            ? notice('ok', `Renders are published from <code>${esc(base)}/renders/…</code>. <a href="${esc(base)}/renders/" target="_blank">Open the public listing</a> to confirm it loads from outside.`)
+            ? await (async () => {
+                const sample = listDrafts().find((d) => d.renderSquare)?.renderSquare ?? null;
+                const r = await checkPublicBase(sample);
+                return r.ok
+                  ? notice('ok', `<b>Reachable.</b> ${esc(r.detail)} Renders are served from <code>${esc(base)}/renders/…</code>. <a href="${esc(r.url)}" target="_blank">Open</a>`)
+                  : notice('bad', `<b>Not reachable from outside:</b> ${esc(r.detail)}<br><code>${esc(r.url)}</code><br><span class="hint">Publishing will fail until this is green. Buffer downloads images from this URL.</span>`);
+              })()
             : notice('warn', '<b>PUBLIC_BASE_URL</b> is not set. Locally: run <code>cloudflared tunnel --url http://localhost:3000</code>, copy the https URL it prints into .env as PUBLIC_BASE_URL, and restart the dashboard. The URL changes each time the tunnel restarts.'),
         );
       res.send(page('Buffer', body, '/buffer'));
